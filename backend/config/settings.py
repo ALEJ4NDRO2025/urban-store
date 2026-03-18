@@ -148,7 +148,10 @@ REST_FRAMEWORK = {
 
 # MongoDB Atlas
 import mongoengine
+import certifi
+
 mongoengine.connect(
     db='urbanstore',
-    host='mongodb+srv://Amejia:Amejia2007@ecommercealejo.dhunmws.mongodb.net/urbanstore?appName=ECOMMERCEALEJO'
+    host='mongodb+srv://Amejia:Amejia2007@ecommercealejo.dhunmws.mongodb.net/urbanstore?appName=ECOMMERCEALEJO',
+    tlsCAFile=certifi.where()
 )
