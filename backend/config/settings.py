@@ -20,7 +20,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-@w3-zdwimv_3mt!1ob%2j)o=c2u&_((ra7ry*1r-u($!xn0@(3'
+from dotenv import dotenv_values
+config = dotenv_values(".env")
+SECRET_KEY = config['SECRET_KEY']
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -152,6 +154,6 @@ import certifi
 
 mongoengine.connect(
     db='urbanstore',
-    host='mongodb+srv://Amejia:Amejia2007@ecommercealejo.dhunmws.mongodb.net/urbanstore?appName=ECOMMERCEALEJO',
+    host=config['MONGODB_URI'],    # ← desde .env
     tlsCAFile=certifi.where()
 )

@@ -29,20 +29,38 @@ class LoginView(APIView):
             email    = serializer.validated_data['email']
             password = serializer.validated_data['password']
 
+            # Busca el usuario en MongoDB
             user = User.objects(email=email).first()
             if not user:
-                return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+                return Response(
+                    {'error': 'Usuario no encontrado'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
-            if not bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
-                return Response({'error': 'Contraseña incorrecta'}, status=status.HTTP_400_BAD_REQUEST)
+            # Verifica la contraseña
+            if not bcrypt.checkpw(
+                password.encode('utf-8'),
+                user.password.encode('utf-8')
+            ):
+                return Response(
+                    {'error': 'Contraseña incorrecta'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # Generar token JWT
-            refresh = RefreshToken.for_user(user)
+            # Genera token JWT manualmente
+            payload = {
+                'user_id':  str(user.id),
+                'email':    user.email,
+                'is_admin': user.is_admin,
+                'exp':      datetime.utcnow() + timedelta(days=7)
+            }
+            token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+
             return Response({
-                'message': 'Inicio de sesión exitoso✅',
-                'access':  str(refresh.access_token),
-                'refresh': str(refresh),
+                'message': 'Login exitoso',
+                'access':  token,
                 'email':   user.email,
                 'name':    user.first_name,
+                'is_admin': user.is_admin,
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

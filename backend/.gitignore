@@ -1,0 +1,22 @@
+# Entorno virtual
+backend/env/
+
+# Base de datos local
+backend/db.sqlite3
+
+# Variables de entorno — CLAVES SECRETAS
+backend/.env
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# VS Code
+.vscode/
+
+# Mac
+.DS_Store
