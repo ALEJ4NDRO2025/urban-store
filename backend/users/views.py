@@ -1,35 +1,42 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.authentication import BaseAuthentication
 from .serializers import RegisterSerializer, LoginSerializer
 from .models import User
+from datetime import datetime, timedelta
+from django.conf import settings
 import bcrypt
+import jwt
 
-
-#AQUI ESTA EL REGISTRO-frontend
+# ── VISTA DE REGISTRO ─────────────────────────────────────────
 class RegisterView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
             return Response({
-                'message': 'Usuario registrado exitosamente🐲',
-                'email': user.email,
+                'message':    'Usuario registrado exitosamente',
+                'email':      user.email,
                 'first_name': user.first_name,
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-#AQUI ESTA EL LOGIN-frontend
+# ── VISTA DE LOGIN ────────────────────────────────────────────
 class LoginView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             email    = serializer.validated_data['email']
             password = serializer.validated_data['password']
 
-            # Busca el usuario en MongoDB
             user = User.objects(email=email).first()
             if not user:
                 return Response(
@@ -37,7 +44,6 @@ class LoginView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            # Verifica la contraseña
             if not bcrypt.checkpw(
                 password.encode('utf-8'),
                 user.password.encode('utf-8')
@@ -47,7 +53,6 @@ class LoginView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Genera token JWT manualmente
             payload = {
                 'user_id':  str(user.id),
                 'email':    user.email,
@@ -57,10 +62,18 @@ class LoginView(APIView):
             token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
 
             return Response({
-                'message': 'Login exitoso',
-                'access':  token,
-                'email':   user.email,
-                'name':    user.first_name,
+                'message':  'Login exitoso',
+                'access':   token,
+                'email':    user.email,
+                'name':     user.first_name,
                 'is_admin': user.is_admin,
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# ── PARA QUÉ SIRVE EN LA ESTRUCTURA ──────────────────────────
+#
+# authentication_classes = [] → evita que DRF intercepte
+# permission_classes = []     → rutas públicas de auth
+#
+# RegisterView → valida → encripta con bcrypt → guarda en MongoDB
+# LoginView    → verifica contraseña → genera token JWT propio

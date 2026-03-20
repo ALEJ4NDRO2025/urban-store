@@ -1,30 +1,45 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAdminUser, AllowAny
+from rest_framework.permissions import BasePermission
 from .serializers import ProductSerializer
 from .models import Product
+from django.conf import settings
+import jwt
+
+# ── PERMISO PERSONALIZADO ─────────────────────────────────────
+class IsAdminMongo(BasePermission):
+    # Verifica que el token JWT sea de un usuario admin de MongoDB
+    def has_permission(self, request, view):
+        auth = request.headers.get('Authorization', '')
+        if not auth.startswith('Bearer '):
+            return False
+        token = auth.split(' ')[1]
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+            return payload.get('is_admin', False)
+        except:
+            return False
+
 
 # ── LISTA Y CREACIÓN DE PRODUCTOS ─────────────────────────────
 class ProductListView(APIView):
+    authentication_classes = []  # DRF no intercepta el token
 
     def get_permissions(self):
-        # GET → cualquiera puede ver el catálogo
-        # POST → solo admin con token JWT
+        # GET → público, POST → solo admin MongoDB
         if self.request.method == 'GET':
-            return [AllowAny()]
-        return [IsAdminUser()]
+            return []
+        return [IsAdminMongo()]
 
     def get(self, request):
         # Filtros opcionales por query params
-        category = request.query_params.get('category')
+        category  = request.query_params.get('category')
         min_price = request.query_params.get('min_price')
         max_price = request.query_params.get('max_price')
 
-        # Trae todos los productos activos
         products = Product.objects(is_active=True)
 
-        # Aplica filtros si llegan
         if category:
             products = products.filter(category=category)
         if min_price:
@@ -32,17 +47,16 @@ class ProductListView(APIView):
         if max_price:
             products = products.filter(price__lte=float(max_price))
 
-        # Convierte a lista de diccionarios
         data = [{
-            'id':          str(p.id),
-            'name':        p.name,
-            'slug':        p.slug,
-            'price':       str(p.price),
-            'category':    p.category,
-            'stock':       p.stock,
-            'sizes':       p.sizes,
-            'colors':      p.colors,
-            'images':      p.images,
+            'id':       str(p.id),
+            'name':     p.name,
+            'slug':     p.slug,
+            'price':    str(p.price),
+            'category': p.category,
+            'stock':    p.stock,
+            'sizes':    p.sizes,
+            'colors':   p.colors,
+            'images':   p.images,
         } for p in products]
 
         return Response(data)
@@ -53,7 +67,7 @@ class ProductListView(APIView):
         if serializer.is_valid():
             product = serializer.save()
             return Response({
-                'message': '🥵Producto creado exitosamente',
+                'message': 'Producto creado exitosamente',
                 'slug':    product.slug,
                 'name':    product.name,
             }, status=status.HTTP_201_CREATED)
@@ -62,13 +76,13 @@ class ProductListView(APIView):
 
 # ── DETALLE, EDICIÓN Y ELIMINACIÓN ────────────────────────────
 class ProductDetailView(APIView):
+    authentication_classes = []  # DRF no intercepta el token
 
     def get_permissions(self):
-        # GET → público
-        # PUT, DELETE → solo admin
+        # GET → público, PUT/DELETE → solo admin MongoDB
         if self.request.method == 'GET':
-            return [AllowAny()]
-        return [IsAdminUser()]
+            return []
+        return [IsAdminMongo()]
 
     def get(self, request, slug):
         # Busca el producto por su slug
@@ -99,12 +113,10 @@ class ProductDetailView(APIView):
                 {'error': 'Producto no encontrado'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        serializer = ProductSerializer(
-            product, data=request.data, partial=True
-        )
+        serializer = ProductSerializer(product, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response({'message': '🐺Producto actualizado'})
+            return Response({'message': 'Producto actualizado'})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, slug):
@@ -117,3 +129,13 @@ class ProductDetailView(APIView):
             )
         product.delete()
         return Response({'message': 'Producto eliminado'})
+
+# ── PARA QUÉ SIRVE EN LA ESTRUCTURA ──────────────────────────
+#
+# authentication_classes = [] → evita que DRF valide el token
+#                               con simplejwt — usamos el nuestro
+#
+# IsAdminMongo → lee el token JWT de MongoDB manualmente
+#
+# ProductListView   → GET público / POST solo admin
+# ProductDetailView → GET público / PUT-DELETE solo admin
