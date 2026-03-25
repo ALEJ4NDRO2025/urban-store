@@ -1,16 +1,19 @@
 import { c } from '../lib/styles'
 import ProductCard from './productCard'
+import CatalogFilters from './catalogFilters'
+import { Suspense } from 'react'
 
-
-//get products es un send a postman
-async function getProducts() {
+// searchParams llega automático en Next.js — son los ?category=hoodies de la URL
+async function getProducts(searchParams) {
   try {
+    const params = new URLSearchParams()
+    if (searchParams.category) params.set('category', searchParams.category)
+    if (searchParams.size)     params.set('size',     searchParams.size)
+    if (searchParams.minPrice) params.set('min_price', searchParams.minPrice)
+    if (searchParams.maxPrice) params.set('max_price', searchParams.maxPrice)
 
-    //aqui esta el fetch- esta linea de comunica con django
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products/`, {
-      //pedir datos frescos
-      cache: 'no-store'
-    })
+    const url = `${process.env.NEXT_PUBLIC_API_URL}/api/products/?${params.toString()}`
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return []
     return await res.json()
   } catch (error) {
@@ -19,9 +22,8 @@ async function getProducts() {
   }
 }
 
-export default async function CatalogPage() {
-  //espera la contsante qu habla con django y que traiga los productos
-  const products = await getProducts()
+export default async function CatalogPage({ searchParams }) {
+  const products = await getProducts(searchParams)
 
   return (
     <main style={{ backgroundColor: c.bg, minHeight: '100vh', padding: '40px 24px' }}>
@@ -33,10 +35,16 @@ export default async function CatalogPage() {
           {products.length} productos disponibles
         </p>
 
+        {/* Filtros — Suspense es necesario porque usa useSearchParams */}
+        <Suspense fallback={<div style={{ color: c.textSub }}>Cargando filtros...</div>}>
+          <CatalogFilters />
+        </Suspense>
+
+        {/* Grid de productos */}
         {products.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '80px 0', color: c.textSub }}>
             <p style={{ fontSize: '48px', marginBottom: '16px' }}>👕</p>
-            <p style={{ fontSize: '18px' }}>No hay productos disponibles aún</p>
+            <p style={{ fontSize: '18px' }}>No hay productos con ese filtro</p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '24px' }}>
