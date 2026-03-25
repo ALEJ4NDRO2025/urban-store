@@ -37,6 +37,7 @@ class ProductListView(APIView):
         category  = request.query_params.get('category')
         min_price = request.query_params.get('min_price')
         max_price = request.query_params.get('max_price')
+        size      = request.query_params.get('size')
 
         products = Product.objects(is_active=True)
 
@@ -46,7 +47,10 @@ class ProductListView(APIView):
             products = products.filter(price__gte=float(min_price))
         if max_price:
             products = products.filter(price__lte=float(max_price))
-
+        if size:
+            products = products.filter(sizes=size)
+            
+            
         data = [{
             'id':       str(p.id),
             'name':     p.name,

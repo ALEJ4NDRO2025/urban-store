@@ -1,9 +1,14 @@
 import { c } from '../lib/styles'
 import ProductCard from './productCard'
 
+
+//get products es un send a postman
 async function getProducts() {
   try {
+
+    //aqui esta el fetch- esta linea de comunica con django
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products/`, {
+      //pedir datos frescos
       cache: 'no-store'
     })
     if (!res.ok) return []
@@ -15,6 +20,7 @@ async function getProducts() {
 }
 
 export default async function CatalogPage() {
+  //espera la contsante qu habla con django y que traiga los productos
   const products = await getProducts()
 
   return (
