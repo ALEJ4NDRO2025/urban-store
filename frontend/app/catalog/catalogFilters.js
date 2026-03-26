@@ -1,96 +1,145 @@
 'use client'
-// app/catalog/catalogFilters.js
-// Botones de filtro — necesita 'use client' porque el usuario hace clic
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { c } from '../lib/styles'
 
-// Opciones fijas de filtro
 const CATEGORIES = ['todos', 'hoodies', 'gorras', 'camisetas', 'accesorios']
 const SIZES      = ['todas', 'S', 'M', 'L', 'XL']
+const PRICES     = [
+  { label: 'Menos de $50.000',    value: 'menos-50' },
+  { label: '$50.000 – $100.000',  value: '50-100'   },
+  { label: 'Más de $100.000',     value: 'mas-100'  },
+]
+
+const sectionTitle = {
+  color: c.textMain,
+  fontSize: '10px',
+  fontWeight: '700',
+  letterSpacing: '2px',
+  textTransform: 'uppercase',
+  marginBottom: '12px',
+  paddingBottom: '8px',
+  borderBottom: `2px solid ${c.primary}`,
+  display: 'inline-block',
+}
+
+const divider = {
+  border: 'none',
+  borderTop: `1px solid ${c.border}`,
+  margin: '22px 0',
+}
 
 export default function CatalogFilters() {
-  const router     = useRouter()      // para cambiar la URL
-  const params     = useSearchParams() // para leer la URL actual
+  const router = useRouter()
+  const params = useSearchParams()
 
-  // Lee qué filtro está activo ahora mismo en la URL
   const activeCategory = params.get('category') || 'todos'
   const activeSize     = params.get('size')     || 'todas'
+  const activePrice    = params.get('precio')   || ''
 
-  // Cuando el usuario hace clic en un filtro, cambia la URL
   function applyFilter(type, value) {
     const newParams = new URLSearchParams(params.toString())
-
-    if (value === 'todos' || value === 'todas') {
-      newParams.delete(type)  // quita el filtro si elige "todos"
-    } else {
-      newParams.set(type, value)  // agrega o cambia el filtro
-    }
-
+    const empty = value === 'todos' || value === 'todas' || value === ''
+    if (empty) { newParams.delete(type) } else { newParams.set(type, value) }
     router.push(`/catalog?${newParams.toString()}`)
   }
 
-  return (
-    <div style={{ marginBottom: '32px' }}>
+  function clearAll() {
+    router.push('/catalog')
+  }
 
-      {/* Filtro por categoría */}
-      <div style={{ marginBottom: '16px' }}>
-        <p style={{ color: c.textSub, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
-          Categoría
-        </p>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => applyFilter('category', cat)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '20px',
-                border: '1px solid',
-                fontSize: '13px',
-                cursor: 'pointer',
-                textTransform: 'capitalize',
-                transition: 'all 0.2s',
-                // Si está activo → fondo rosa, si no → transparente
-                backgroundColor: activeCategory === cat ? c.primary : 'transparent',
-                borderColor:     activeCategory === cat ? c.primary : '#333',
-                color:           activeCategory === cat ? '#fff'     : c.textSub,
-              }}
-            >
+  const hasFilters = activeCategory !== 'todos' || activeSize !== 'todas' || activePrice !== ''
+
+  return (
+    <aside style={{ width: '210px', flexShrink: 0, paddingRight: '32px' }}>
+
+      {/* Header sidebar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px',
+      }}>
+        <span style={{ color: c.textMain, fontSize: '13px', fontWeight: '600' }}>Filtros</span>
+        {hasFilters && (
+          <button onClick={clearAll} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: c.primary, fontSize: '11px', fontWeight: '600',
+            textDecoration: 'underline', padding: 0,
+          }}>
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* Categoría */}
+      <div style={{ marginBottom: '4px' }}>
+        <p style={sectionTitle}>Categoría</p>
+        {CATEGORIES.map((cat) => {
+          const active = activeCategory === cat
+          return (
+            <button key={cat} onClick={() => applyFilter('category', cat)} style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              padding: '9px 12px', borderRadius: '8px', marginBottom: '5px',
+              fontSize: '13px', fontWeight: active ? '600' : '400',
+              cursor: 'pointer', transition: 'all 0.15s',
+              textTransform: 'capitalize',
+              backgroundColor: active ? c.primary : 'transparent',
+              color:           active ? c.white   : c.textMain,
+              border:          active ? `1.5px solid ${c.primary}` : `1.5px solid transparent`,
+            }}>
               {cat}
             </button>
-          ))}
+          )
+        })}
+      </div>
+
+      <hr style={divider} />
+
+      {/* Talla */}
+      <div style={{ marginBottom: '4px' }}>
+        <p style={sectionTitle}>Talla</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {SIZES.map((size) => {
+            const active = activeSize === size
+            return (
+              <button key={size} onClick={() => applyFilter('size', size)} style={{
+                width: '40px', height: '40px', borderRadius: '8px',
+                fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.15s',
+                backgroundColor: active ? c.primary : c.card,
+                color:           active ? c.white   : c.textMain,
+                border:          active ? `1.5px solid ${c.primary}` : `1.5px solid ${c.border}`,
+                boxShadow: active ? 'none' : '0 1px 3px rgba(0,0,0,0.06)',
+              }}>
+                {size}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Filtro por talla */}
+      <hr style={divider} />
+
+      {/* Precio */}
       <div>
-        <p style={{ color: c.textSub, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
-          Tallaa
-        </p>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {SIZES.map((size) => (
-            <button
-              key={size}
-              onClick={() => applyFilter('size', size)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '20px',
-                border: '1px solid',
-                fontSize: '13px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                backgroundColor: activeSize === size ? c.accent : 'transparent',
-                borderColor:     activeSize === size ? c.accent : '#333',
-                color:           activeSize === size ? '#000'   : c.textSub,
-              }}
-            >
-              {size}
+        <p style={sectionTitle}>Precio</p>
+        {PRICES.map(({ label, value }) => {
+          const active = activePrice === value
+          return (
+            <button key={value} onClick={() => applyFilter('precio', value)} style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              padding: '9px 12px', borderRadius: '8px', marginBottom: '5px',
+              fontSize: '13px', fontWeight: active ? '600' : '400',
+              cursor: 'pointer', transition: 'all 0.15s',
+              backgroundColor: active ? c.primary : 'transparent',
+              color:           active ? c.white   : c.textMain,
+              border:          active ? `1.5px solid ${c.primary}` : `1.5px solid transparent`,
+            }}>
+              {label}
             </button>
-          ))}
-        </div>
+          )
+        })}
       </div>
 
-    </div>
+    </aside>
   )
 }

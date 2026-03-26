@@ -1,9 +1,9 @@
+import Navbar from '../Navbar'
 import { c } from '../lib/styles'
 import ProductCard from './productCard'
 import CatalogFilters from './catalogFilters'
 import { Suspense } from 'react'
 
-// searchParams llega automático en Next.js — son los ?category=hoodies de la URL
 async function getProducts(searchParams) {
   try {
     const params = new URLSearchParams()
@@ -26,34 +26,100 @@ export default async function CatalogPage({ searchParams }) {
   const products = await getProducts(searchParams)
 
   return (
-    <main style={{ backgroundColor: c.bg, minHeight: '100vh', padding: '40px 24px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        <h1 style={{ color: c.textMain, fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>
-          Catálogo
-        </h1>
-        <p style={{ color: c.textSub, marginBottom: '32px' }}>
-          {products.length} productos disponibles
-        </p>
+    <div style={{ backgroundColor: c.bg, minHeight: '100vh' }}>
 
-        {/* Filtros — Suspense es necesario porque usa useSearchParams */}
-        <Suspense fallback={<div style={{ color: c.textSub }}>Cargando filtros...</div>}>
+      {/* Navbar */}
+      <Navbar  cartCount={0}/>
+
+      {/* Hero strip */}
+      <div style={{
+        backgroundColor: c.bgDark,
+        padding: '48px 40px 40px',
+        borderBottom: `1px solid #3A342B`,
+      }}>
+        <p style={{
+          color: c.primary, fontSize: '11px', fontWeight: '700',
+          letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '10px',
+        }}>
+          Colección 2026
+        </p>
+        <h1 style={{
+          color: '#F2EDE6', fontSize: '30px', fontWeight: '700',
+          margin: '0 0 8px', letterSpacing: '-0.5px',
+        }}>
+          Catálogo Streetwear
+        </h1>
+        <p style={{ color: 'rgba(242,237,230,0.45)', fontSize: '14px', margin: 0 }}>
+          Ropa y accesorios de cultura urbana
+        </p>
+      </div>
+
+      {/* Layout principal */}
+      <div style={{
+        display: 'flex',
+        gap: '0',
+        alignItems: 'flex-start',
+        paddingLeft: '24px',
+      }}>
+
+        {/* Sidebar filtros */}
+        <Suspense fallback={
+          <div style={{ width: '220px', flexShrink: 0, paddingLeft: '32px', paddingRight: '24px' }}>
+            <div style={{ color: c.textSub, fontSize: '13px' }}>Cargando filtros...</div>
+          </div>
+        }>
           <CatalogFilters />
         </Suspense>
 
-        {/* Grid de productos */}
-        {products.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: c.textSub }}>
-            <p style={{ fontSize: '48px', marginBottom: '16px' }}>👕</p>
-            <p style={{ fontSize: '18px' }}>No hay productos con ese filtro</p>
+        {/* Contenido principal */}
+        <div style={{ flex: 1, padding: '40px 40px 40px 32px' }}>
+
+          {/* Barra superior */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', marginBottom: '24px',
+            paddingBottom: '16px', borderBottom: `1px solid ${c.border}`,
+          }}>
+            <span style={{ color: c.textSub, fontSize: '13px' }}>
+              <span style={{ color: c.textMain, fontWeight: '600' }}>{products.length}</span> productos disponibles
+            </span>
+            <span style={{
+              color: c.textSub, fontSize: '12px',
+              backgroundColor: c.card, padding: '6px 14px',
+              borderRadius: '20px', border: `1px solid ${c.border}`,
+            }}>
+              Más recientes primero
+            </span>
           </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '24px' }}>
-            {products.map((product) => (
-              <ProductCard key={product.slug} product={product} />
-            ))}
-          </div>
-        )}
+
+          {/* Estado vacío */}
+          {products.length === 0 ? (
+            <div style={{
+              textAlign: 'center', padding: '80px 0',
+              backgroundColor: c.card, borderRadius: '16px',
+              border: `1px solid ${c.border}`,
+            }}>
+              <p style={{ fontSize: '48px', marginBottom: '16px' }}>👕</p>
+              <p style={{ color: c.textMain, fontSize: '16px', fontWeight: '600', marginBottom: '6px' }}>
+                Sin resultados
+              </p>
+              <p style={{ color: c.textSub, fontSize: '13px' }}>
+                No hay productos con ese filtro
+              </p>
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: '20px',
+            }}>
+              {products.map((product) => (
+                <ProductCard key={product.slug} product={product} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </main>
+    </div>
   )
 }
