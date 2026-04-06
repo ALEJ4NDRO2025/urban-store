@@ -33,7 +33,8 @@ export default function LoginPage() {
       if (res.ok) {
         localStorage.setItem('access', data.access)
         localStorage.setItem('refresh', data.refresh)
-        router.push('/')
+        localStorage.setItem('user', JSON.stringify({ email: data.email || email }))
+        window.location.href = '/' // Redirige a la página principal después de iniciar sesión
       } else {
         setError(data.detail || 'Credenciales incorrectas')
       }

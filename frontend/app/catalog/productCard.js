@@ -16,11 +16,16 @@ export default function ProductCard({ product }) {
     : 'Agotado'
 
   return (
-    <Link href={`/catalog/${product.slug}`}>
+    <Link 
+      href={`/catalog/${product.slug}`}
+      style={{ textDecoration: 'none', outline: 'none' }}
+    >
       <div
         style={{
           ...styles.productCard,
           ...(hovering && styles.productCardHover),
+          outline: 'none',
+          border: 'none',
         }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
