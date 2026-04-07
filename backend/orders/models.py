@@ -16,6 +16,7 @@ class ShippingAddress(EmbeddedDocument):
     phone   = StringField(required=True)
     address = StringField(required=True)
     city    = StringField(required=True)
+    department = StringField(requered=True)   
     country = StringField(default='Colombia')
 
 class Order(Document):
