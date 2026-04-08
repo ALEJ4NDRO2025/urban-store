@@ -83,6 +83,7 @@ export default function RegisterPage() {
                   name="first_name"
                   value={formData.first_name}
                   onChange={handleChange}
+                  maxLength={30}
                   onFocus={handleFocus}
                   onBlur={handleBlur}
                   required
@@ -96,6 +97,7 @@ export default function RegisterPage() {
                   type="text"
                   name="last_name"
                   value={formData.last_name}
+                  maxLength={30}
                   onChange={handleChange}
                   onFocus={handleFocus}
                   onBlur={handleBlur}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { c } from '../../lib/styles'
+import { c, styles, mergeStyles } from '../../lib/styles'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -40,6 +40,20 @@ export default function OrderConfirmationPage() {
     fetchOrder()
   }, [id])
 
+  // Estados para los badges
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'pending':
+        return { emoji: '⏳', label: 'Pendiente', bg: '#fff3e0', color: '#e65100' }
+      case 'paid':
+        return { emoji: '✅', label: 'Pagado', bg: '#e8f5e9', color: '#2e7d32' }
+      case 'shipped':
+        return { emoji: '🚚', label: 'Enviado', bg: '#e3f2fd', color: '#1565c0' }
+      default:
+        return { emoji: '📦', label: status, bg: '#f5f5f5', color: '#666' }
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ backgroundColor: c.bg, color: c.textMain, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -54,21 +68,15 @@ export default function OrderConfirmationPage() {
         <p style={{ color: c.error }}>Error: {error}</p>
         <button
           onClick={() => router.push('/')}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: c.primary,
-            color: '#000',
-            border: 'none',
-            borderRadius: '6px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-          }}
+          style={styles.buttonSmall()}
         >
           Volver al inicio
         </button>
       </div>
     )
   }
+
+  const statusBadge = getStatusBadge(order.status)
 
   return (
     <div style={{ backgroundColor: c.bg, color: c.textMain, minHeight: '100vh' }}>
@@ -79,33 +87,38 @@ export default function OrderConfirmationPage() {
             width: '80px',
             height: '80px',
             margin: '0 auto 20px',
-            backgroundColor: '#e6f7e6',
+            backgroundColor: statusBadge.bg,
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-            <span style={{ fontSize: '40px', color: '#2e7d32' }}>✓</span>
+            <span style={{ fontSize: '40px' }}>{statusBadge.emoji}</span>
           </div>
-          <h1 style={{ fontSize: '28px', marginBottom: '8px' }}>¡Pedido confirmado!</h1>
+          <h1 style={mergeStyles(styles.heading2, { marginBottom: '8px' })}>
+            ¡Pedido confirmado!
+          </h1>
           <p style={{ color: c.textSub }}>
             Gracias por tu compra. Hemos enviado un correo con los detalles.
           </p>
         </div>
 
         {/* Detalles de la orden */}
-        <div style={{ backgroundColor: c.card, borderRadius: '12px', padding: '30px', marginBottom: '30px' }}>
+        <div style={mergeStyles(styles.card, { marginBottom: '30px' })}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2 style={{ fontSize: '20px', margin: 0 }}>Orden #{order.order_number}</h2>
             <span style={{
-              padding: '4px 12px',
-              borderRadius: '20px',
-              fontSize: '14px',
-              fontWeight: '500',
-              backgroundColor: order.status === 'pending' ? '#fff3e0' : '#e8f5e9',
-              color: order.status === 'pending' ? '#e65100' : '#2e7d32',
+              padding: '8px 16px',
+              borderRadius: '30px',
+              fontSize: '16px',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: statusBadge.bg,
+              color: statusBadge.color,
             }}>
-              {order.status === 'pending' ? 'Pendiente' : 'Pagada'}
+              {statusBadge.emoji} {statusBadge.label}
             </span>
           </div>
 
@@ -124,7 +137,7 @@ export default function OrderConfirmationPage() {
               <p style={{ margin: '4px 0', color: c.textSub }}>{order.shipping_address.phone}</p>
               <p style={{ margin: '12px 0 4px' }}>{order.shipping_address.address}</p>
               <p style={{ margin: '4px 0' }}>
-                {order.shipping_address.city}, {order.shipping_address.department}  {/* ← DEPARTAMENTO AÑADIDO */}
+                {order.shipping_address.city}, {order.shipping_address.department}
               </p>
               <p style={{ margin: '4px 0' }}>{order.shipping_address.country}</p>
               {order.notes && (
@@ -196,30 +209,13 @@ export default function OrderConfirmationPage() {
         <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
           <button
             onClick={() => router.push('/catalog')}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: c.primary,
-              color: '#000',
-              border: 'none',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '16px',
-            }}
+            style={styles.buttonSmall()}
           >
             Seguir comprando
           </button>
           <button
             onClick={() => router.push('/')}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: 'transparent',
-              color: c.textMain,
-              border: `1px solid ${c.border}`,
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '16px',
-            }}
+            style={mergeStyles(styles.buttonSecondary(), { fontSize: '14px' })}
           >
             Ir al inicio
           </button>
