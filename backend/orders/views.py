@@ -5,8 +5,14 @@ from django.conf import settings
 from .models import Order, OrderItem, ShippingAddress
 from cart.models import Cart
 import jwt
+from datetime import datetime
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FUNCIONES AUXILIARES
+# ═══════════════════════════════════════════════════════════════════════════
 
 def get_user_id(request):
+    """Extrae el email (user_id) del token JWT."""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         return None
@@ -16,46 +22,60 @@ def get_user_id(request):
     except:
         return None
 
+def is_admin(request):
+    """Devuelve True si el token pertenece a un administrador."""
+    auth = request.headers.get('Authorization', '')
+    if not auth.startswith('Bearer '):
+        return False
+    try:
+        payload = jwt.decode(auth.split(' ')[1], settings.SECRET_KEY, algorithms=['HS256'])
+        return payload.get('is_admin', False)
+    except:
+        return False
+
 def order_to_dict(order):
+    """Convierte un objeto Order en un diccionario JSON serializable."""
     return {
-        'id':           str(order.id),
+        'id': str(order.id),
         'order_number': order.order_number,
-        'user_id':      order.user_id,
+        'user_id': order.user_id,
         'items': [{
             'product_slug': i.product_slug,
             'product_name': i.product_name,
-            'quantity':     i.quantity,
-            'size':         i.size,
-            'color':        i.color,
-            'price_paid':   i.price_paid,
-            'subtotal':     i.subtotal,
+            'quantity': i.quantity,
+            'size': i.size,
+            'color': i.color,
+            'price_paid': i.price_paid,
+            'subtotal': i.subtotal,
         } for i in order.items],
-        'subtotal':  order.subtotal,
-        'tax':       order.tax,
-        'shipping':  order.shipping,
-        'total':     order.total,
-        'status':    order.status,
+        'subtotal': order.subtotal,
+        'tax': order.tax,
+        'shipping': order.shipping,
+        'total': order.total,
+        'status': order.status,
         'shipping_address': {
-            'email':      order.shipping_address.email,
-            'name':       order.shipping_address.name,
-            'phone':      order.shipping_address.phone,
-            'address':    order.shipping_address.address,
-            'city':       order.shipping_address.city,
-            'department': order.shipping_address.department,  # ← AQUÍ SE DEVUELVE AL FRONTEND
-            'country':    order.shipping_address.country,
+            'email': order.shipping_address.email,
+            'name': order.shipping_address.name,
+            'phone': order.shipping_address.phone,
+            'address': order.shipping_address.address,
+            'city': order.shipping_address.city,
+            'department': order.shipping_address.department,
+            'country': order.shipping_address.country,
         },
-        'notes':      order.notes,
+        'notes': order.notes,
         'created_at': order.created_at.isoformat(),
     }
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VISTAS
+# ═══════════════════════════════════════════════════════════════════════════
 
 class CreateOrderView(APIView):
     authentication_classes = []
     permission_classes = []
 
     def post(self, request):
-        """POST /api/orders/ — crea orden desde el carrito
-        Body: { shipping_address: { email, name, phone, address, city, department }, notes }
-        """
+        """POST /api/orders/ — crea una orden desde el carrito."""
         user_id = get_user_id(request)
         if not user_id:
             return Response({'error': 'Token inválido'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -92,14 +112,14 @@ class CreateOrderView(APIView):
                 phone=addr.get('phone', ''),
                 address=addr.get('address', ''),
                 city=addr.get('city', ''),
-                department=addr.get('department', ''),   # ← CORRECCIÓN: GUARDAR DEPARTMENT
+                department=addr.get('department', ''),
                 country=addr.get('country', 'Colombia'),
             ),
             notes=request.data.get('notes', ''),
         )
         order.save()
 
-        # Vacía el carrito
+        # Vaciar carrito
         cart.items = []
         cart.calculate_totals()
         cart.save()
@@ -112,42 +132,30 @@ class OrderDetailView(APIView):
     permission_classes = []
 
     def get(self, request, order_id):
-        """GET /api/orders/<order_id>/ — detalle de una orden"""
+        """GET /api/orders/<order_id>/ — detalle de una orden."""
         user_id = get_user_id(request)
         if not user_id:
             return Response({'error': 'Token inválido'}, status=status.HTTP_401_UNAUTHORIZED)
 
+        admin = is_admin(request)
+
         try:
-            order = Order.objects.get(id=order_id, user_id=user_id)
+            if admin:
+                order = Order.objects.get(id=order_id)
+            else:
+                order = Order.objects.get(id=order_id, user_id=user_id)
         except Order.DoesNotExist:
             return Response({'error': 'Orden no encontrada'}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response(order_to_dict(order))
-    
-    # ──────────────────────────────────────────────────────────────────────────────
-# NUEVAS VISTAS PARA PERFIL DE USUARIO Y ADMIN
-# ──────────────────────────────────────────────────────────────────────────────
-
-from datetime import datetime
-
-def is_admin(request):
-    """Devuelve True si el token JWT pertenece a un administrador."""
-    auth = request.headers.get('Authorization', '')
-    if not auth.startswith('Bearer '):
-        return False
-    try:
-        payload = jwt.decode(auth.split(' ')[1], settings.SECRET_KEY, algorithms=['HS256'])
-        return payload.get('is_admin', False)
-    except:
-        return False
+        return Response(order_to_dict(order), status=status.HTTP_200_OK)
 
 
 class UserOrdersView(APIView):
-    """GET /api/orders/my-orders/ — Lista de pedidos del usuario autenticado."""
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
+        """GET /api/orders/my-orders/ — pedidos del usuario autenticado."""
         user_id = get_user_id(request)
         if not user_id:
             return Response({'error': 'Token inválido'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -157,11 +165,11 @@ class UserOrdersView(APIView):
 
 
 class AllOrdersView(APIView):
-    """GET /api/orders/all/ — Todos los pedidos (solo admin)."""
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
+        """GET /api/orders/all/ — todos los pedidos (solo admin)."""
         if not is_admin(request):
             return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -170,11 +178,11 @@ class AllOrdersView(APIView):
 
 
 class UpdateOrderStatusView(APIView):
-    """PATCH /api/orders/<order_id>/status/ — Cambiar estado de un pedido (solo admin)."""
     authentication_classes = []
     permission_classes = []
 
     def patch(self, request, order_id):
+        """PATCH /api/orders/<order_id>/status/ — actualizar estado (solo admin)."""
         if not is_admin(request):
             return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
 

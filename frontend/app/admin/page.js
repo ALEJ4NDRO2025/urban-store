@@ -19,7 +19,6 @@ export default function AdminPage() {
       return
     }
 
-    // Verificar admin
     try {
       const payload = JSON.parse(atob(token.split('.')[1]))
       if (!payload.is_admin) {
@@ -73,6 +72,19 @@ export default function AdminPage() {
     }
   }
 
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'pending':
+        return { backgroundColor: '#fff3e0', color: '#e65100' }
+      case 'paid':
+        return { backgroundColor: '#e8f5e9', color: '#2e7d32' }
+      case 'shipped':
+        return { backgroundColor: '#e3f2fd', color: '#1565c0' }
+      default:
+        return { backgroundColor: '#f5f5f5', color: '#666' }
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ backgroundColor: c.bg, minHeight: '100vh', color: c.textMain, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -94,28 +106,43 @@ export default function AdminPage() {
 
   return (
     <div style={{ backgroundColor: c.bg, minHeight: '100vh', color: c.textMain }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-          <h1 style={{ fontSize: '28px', fontWeight: '800' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: 'clamp(20px, 5vw, 40px) clamp(16px, 4vw, 20px)' }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: 'clamp(20px, 4vw, 30px)', 
+          flexWrap: 'wrap', 
+          gap: '15px' 
+        }}>
+          <h1 style={{ fontSize: 'clamp(24px, 6vw, 28px)', fontWeight: '800' }}>
             Panel de <span style={{ color: c.primary }}>Administración</span>
           </h1>
           <button
             onClick={() => router.push('/')}
-            style={{ padding: '8px 16px', backgroundColor: 'transparent', color: c.textSub, border: `1px solid ${c.border}`, borderRadius: '6px', cursor: 'pointer' }}
+            style={{ 
+              padding: '8px 16px', 
+              backgroundColor: 'transparent', 
+              color: c.textSub, 
+              border: `1px solid ${c.border}`, 
+              borderRadius: '6px', 
+              cursor: 'pointer',
+              fontSize: 'clamp(12px, 3vw, 14px)'
+            }}
           >
             ← Volver a la tienda
           </button>
         </div>
 
-        <h2 style={{ fontSize: '20px', marginBottom: '20px' }}>Gestión de Pedidos</h2>
+        <h2 style={{ fontSize: 'clamp(18px, 4vw, 20px)', marginBottom: '20px' }}>Gestión de Pedidos</h2>
 
         {orders.length === 0 ? (
-          <div style={{ backgroundColor: c.card, borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
-            <p style={{ color: c.textSub }}>No hay pedidos registrados.</p>
+          <div style={{ backgroundColor: c.card, borderRadius: '12px', padding: 'clamp(30px, 8vw, 40px)', textAlign: 'center' }}>
+            <p style={{ color: c.textSub, fontSize: 'clamp(14px, 3vw, 16px)' }}>No hay pedidos registrados.</p>
           </div>
         ) : (
-          <div style={{ backgroundColor: c.card, borderRadius: '12px', overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ backgroundColor: c.card, borderRadius: '12px', overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${c.border}` }}>
                   <th style={{ padding: '16px', textAlign: 'left', color: c.textSub, fontSize: '13px', fontWeight: '600' }}>Nº Orden</th>
@@ -147,13 +174,14 @@ export default function AdminPage() {
                         disabled={updatingId === order.id}
                         style={{
                           padding: '6px 12px',
-                          backgroundColor: c.input,
-                          color: c.textMain,
+                          backgroundColor: getStatusStyle(order.status).backgroundColor,
+                          color: getStatusStyle(order.status).color,
                           border: `1px solid ${c.border}`,
                           borderRadius: '6px',
                           fontSize: '13px',
                           cursor: 'pointer',
                           opacity: updatingId === order.id ? 0.6 : 1,
+                          fontWeight: '600',
                         }}
                       >
                         <option value="pending">Pendiente</option>

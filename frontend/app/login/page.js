@@ -3,16 +3,16 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { c, styles } from '../lib/styles'  // ← paleta y estilos globales
-import { API_URL } from '../lib/api'        // ← URL del backend desde .env.local
+import { c, styles } from '../lib/styles'
+import { API_URL } from '../lib/api'
 
 export default function LoginPage() {
   const router = useRouter()
 
-  const [email, setEmail]       = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const [hovering, setHovering] = useState(false)
 
   const handleLogin = async (e) => {
@@ -21,7 +21,6 @@ export default function LoginPage() {
     setError('')
 
     try {
-      // URL viene de .env.local — no está hardcodeada en el código
       const res = await fetch(`${API_URL}/api/users/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -31,12 +30,23 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (res.ok) {
+        // Guardar tokens
         localStorage.setItem('access', data.access)
         localStorage.setItem('refresh', data.refresh)
-        localStorage.setItem('user', JSON.stringify({ email: data.email || email }))
-        window.location.href = '/' // Redirige a la página principal después de iniciar sesión
+
+        // Guardar información del usuario (incluyendo nombre)
+        localStorage.setItem('user', JSON.stringify({
+          email: data.email || email,
+          name: data.name || email   // ← Aquí guardamos el nombre real
+        }))
+
+        // 🍪 Cookie para el middleware
+        document.cookie = `access=${data.access}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+
+        // Redirigir a la página principal
+        window.location.href = '/'
       } else {
-        setError(data.detail || 'Credenciales incorrectas')
+        setError(data.error || 'Credenciales incorrectas')
       }
     } catch (err) {
       setError('Error conectando con el servidor')
@@ -46,13 +56,11 @@ export default function LoginPage() {
   }
 
   const handleFocus = (e) => (e.target.style.borderColor = c.accent)
-  const handleBlur  = (e) => (e.target.style.borderColor = '#2A2A2A')
+  const handleBlur = (e) => (e.target.style.borderColor = '#2A2A2A')
 
   return (
     <div style={styles.page}>
       <div style={{ width: '100%', maxWidth: '420px' }}>
-
-        {/* ── Logo ── */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <h1 style={{ fontSize: '36px', fontWeight: '900', color: c.textMain, letterSpacing: '8px', margin: 0 }}>
             URBAN<span style={{ color: c.primary }}>STORE</span>
@@ -62,13 +70,10 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* ── Card ── */}
         <div style={styles.card}>
-
           {error && <div style={styles.error}>{error}</div>}
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
             <div>
               <label style={styles.label}>Email</label>
               <input
@@ -106,7 +111,6 @@ export default function LoginPage() {
             >
               {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
             </button>
-
           </form>
 
           <p style={{ textAlign: 'center', color: c.textSub, fontSize: '13px', marginTop: '24px' }}>
@@ -115,7 +119,6 @@ export default function LoginPage() {
               Regístrate
             </Link>
           </p>
-
         </div>
       </div>
     </div>
