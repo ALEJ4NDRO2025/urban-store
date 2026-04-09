@@ -166,3 +166,14 @@ cloudinary.config(
     api_key    = config['CLOUDINARY_API_KEY'],
     api_secret = config['CLOUDINARY_API_SECRET'],
 )
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CONFIGURACIÓN DE CORREO ELECTRÓNICO (SMTP GMAIL)
+# ═══════════════════════════════════════════════════════════════════════════
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'           # servidor de Gmail
+EMAIL_PORT = 587                        # puerto para TLS
+EMAIL_USE_TLS = True                    # usar encriptación TLS
+EMAIL_HOST_USER = 'tu_correo@gmail.com' # ← CAMBIAR por tu correo real
+EMAIL_HOST_PASSWORD = 'tu_contraseña_de_aplicacion' # ← CLAVE DE APLICACIÓN (no tu contraseña normal)
+DEFAULT_FROM_EMAIL = 'Urban Store <tu_correo@gmail.com>'

@@ -1,0 +1,46 @@
+# ─── DEPENDENCIAS ──────────────────────────────────────────────────────────
+node_modules/
+env/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ─── VARIABLES DE ENTORNO (SEGURIDAD CRÍTICA) ──────────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+
+# ─── ARCHIVOS DE SISTEMA ──────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ─── NEXT.JS ───────────────────────────────────────────────────────────────
+.next/
+out/
+build/
+dist/
+
+# ─── DJANGO ─────────────────────────────────────────────────────────────────
+*.log
+*.sql
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# ─── IDE ───────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-*

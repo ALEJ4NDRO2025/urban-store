@@ -1,22 +1,37 @@
-# Entorno virtual
-backend/env/
-
-# Base de datos local
-backend/db.sqlite3
-
-# Variables de entorno — CLAVES SECRETAS
-backend/.env
-.env
-
-# Python cache
+# ─── DEPENDENCIAS PYTHON ──────────────────────────────────────────────────
+env/
+venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+pip-log.txt
+pip-delete-this-directory.txt
 
-# VS Code
+# ─── VARIABLES DE ENTORNO ─────────────────────────────────────────────────
+.env
+*.env
+!.env.example
+
+# ─── BASE DE DATOS ────────────────────────────────────────────────────────
+*.sqlite3
+db.sqlite3
+dump.rdb
+
+# ─── ARCHIVOS DE DJANGO ───────────────────────────────────────────────────
+*.log
+media/
+staticfiles/
+static/
+collectstatic/
+
+# ─── IDE ───────────────────────────────────────────────────────────────────
 .vscode/
-
-# Mac
+.idea/
+*.sublime-*
 .DS_Store
+
+# ─── MIGRACIONES (opcional, normalmente se commitean) ─────────────────────
+# */migrations/*.py
+# !*/migrations/__init__.py
