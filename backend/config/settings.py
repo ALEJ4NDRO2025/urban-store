@@ -167,13 +167,21 @@ cloudinary.config(
     api_secret = config['CLOUDINARY_API_SECRET'],
 )
 
+import certifi
+import ssl
+# Configurar el contexto SSL por defecto para usar los certificados de certifi
+ssl_context = ssl.create_default_context(cafile=certifi.where())
+ssl._create_default_https_context = lambda: ssl_context
+
+
 # ═══════════════════════════════════════════════════════════════════════════
-# CONFIGURACIÓN DE CORREO ELECTRÓNICO (SMTP GMAIL)
+# CONFIGURACIÓN DE CORREO ELECTRÓNICO (SMTP GMAIL) CON CERTIFICADOS FIJOS
 # ═══════════════════════════════════════════════════════════════════════════
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'           # servidor de Gmail
-EMAIL_PORT = 587                        # puerto para TLS
-EMAIL_USE_TLS = True                    # usar encriptación TLS
-EMAIL_HOST_USER = 'tu_correo@gmail.com' # ← CAMBIAR por tu correo real
-EMAIL_HOST_PASSWORD = 'tu_contraseña_de_aplicacion' # ← CLAVE DE APLICACIÓN (no tu contraseña normal)
-DEFAULT_FROM_EMAIL = 'Urban Store <tu_correo@gmail.com>'
+EMAIL_BACKEND = 'config.email_backend.CustomEmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_HOST_USER = config.get('EMAIL_HOST_USER', 'goldenash04@gmail.com')
+EMAIL_HOST_PASSWORD = config.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = f'Urban Store <{EMAIL_HOST_USER}>'
