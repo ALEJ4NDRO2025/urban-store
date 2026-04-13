@@ -14,6 +14,9 @@ export function middleware(request) {
     '/register',
     '/catalog',
     '/',
+    '/verify-email',        // ← DEBE ESTAR AQUÍ
+    '/forgot-password',      // ← También
+    '/reset-password',       // ← También
   ]
   const isPublicPath = publicPaths.some(path => pathname === path || pathname.startsWith(path + '/'))
 

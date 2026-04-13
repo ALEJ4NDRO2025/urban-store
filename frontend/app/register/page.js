@@ -3,61 +3,97 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { c, styles } from '../lib/styles'  // ← paleta y estilos globales
-import { API_URL } from '../lib/api'        // ← URL del backend desde .env.local
+import { c, styles } from '../lib/styles'
+import { API_URL } from '../lib/api'
 
 export default function RegisterPage() {
   const router = useRouter()
 
   const [formData, setFormData] = useState({
     first_name: '',
-    last_name:  '',
-    email:      '',
-    password:   '',
+    last_name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
   })
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
+
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const [hovering, setHovering] = useState(false)
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
-  const handleRegister = async (e) => {
+  const handleFocus = (e) => (e.target.style.borderColor = c.accent)
+  const handleBlur = (e) => (e.target.style.borderColor = '#2A2A2A')
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setLoading(true)
     setError('')
+    console.log('1. Iniciando registro...')
+
+    // Validaciones básicas
+    if (formData.password !== formData.confirmPassword) {
+      setError('Las contraseñas no coinciden')
+      return
+    }
+    if (formData.password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+    if (formData.first_name.length > 30) {
+      setError('El nombre no puede exceder los 30 caracteres')
+      return
+    }
+
+    console.log('2. Validaciones pasadas, enviando petición...')
+    setLoading(true)
 
     try {
-      // URL viene de .env.local — no está hardcodeada en el código
       const res = await fetch(`${API_URL}/api/users/register/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          email: formData.email,
+          password: formData.password,
+        }),
       })
 
       const data = await res.json()
+      console.log('3. Respuesta del servidor:', res.status, data)
 
       if (res.ok) {
-        router.push('/login')
+        console.log('4. Registro exitoso, redirigiendo a verify-email...')
+        // Forzar redirección con recarga completa
+        window.location.href = `/verify-email?email=${encodeURIComponent(formData.email)}`
       } else {
-        setError(data.detail || 'Error al registrar usuario')
+        console.log('5. Error en registro:', data)
+        // Manejar errores del backend
+        if (data.email) {
+          setError(data.email[0] || 'Error en el email')
+        } else if (data.password) {
+          setError(data.password[0] || 'Error en la contraseña')
+        } else if (data.first_name) {
+          setError(data.first_name[0] || 'Error en el nombre')
+        } else {
+          setError(data.error || 'Error al registrarse')
+        }
       }
     } catch (err) {
+      console.error('6. Error de conexión:', err)
       setError('Error conectando con el servidor')
     } finally {
       setLoading(false)
+      console.log('7. Fin del proceso')
     }
   }
 
-  const handleFocus = (e) => (e.target.style.borderColor = c.accent)
-  const handleBlur  = (e) => (e.target.style.borderColor = '#2A2A2A')
-
   return (
     <div style={styles.page}>
-      <div style={{ width: '100%', maxWidth: '420px' }}>
-
-        {/* ── Logo ── */}
+      <div style={{ width: '100%', maxWidth: '480px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <h1 style={{ fontSize: '36px', fontWeight: '900', color: c.textMain, letterSpacing: '8px', margin: 0 }}>
             URBAN<span style={{ color: c.primary }}>STORE</span>
@@ -67,13 +103,10 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        {/* ── Card ── */}
         <div style={styles.card}>
-
           {error && <div style={styles.error}>{error}</div>}
 
-          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Nombre y Apellido en fila */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
@@ -97,8 +130,8 @@ export default function RegisterPage() {
                   type="text"
                   name="last_name"
                   value={formData.last_name}
-                  maxLength={30}
                   onChange={handleChange}
+                  maxLength={30}
                   onFocus={handleFocus}
                   onBlur={handleBlur}
                   required
@@ -108,7 +141,6 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Email */}
             <div>
               <label style={styles.label}>Email</label>
               <input
@@ -124,7 +156,6 @@ export default function RegisterPage() {
               />
             </div>
 
-            {/* Contraseña */}
             <div>
               <label style={styles.label}>Contraseña</label>
               <input
@@ -135,7 +166,22 @@ export default function RegisterPage() {
                 onFocus={handleFocus}
                 onBlur={handleBlur}
                 required
-                placeholder="••••••••"
+                placeholder="Mínimo 6 caracteres"
+                style={styles.input}
+              />
+            </div>
+
+            <div>
+              <label style={styles.label}>Confirmar contraseña</label>
+              <input
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                required
+                placeholder="Repite tu contraseña"
                 style={styles.input}
               />
             </div>
@@ -147,9 +193,8 @@ export default function RegisterPage() {
               onMouseLeave={() => setHovering(false)}
               style={styles.button(loading, hovering)}
             >
-              {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+              {loading ? 'Registrando...' : 'Registrarse'}
             </button>
-
           </form>
 
           <p style={{ textAlign: 'center', color: c.textSub, fontSize: '13px', marginTop: '24px' }}>
@@ -158,7 +203,6 @@ export default function RegisterPage() {
               Inicia sesión
             </Link>
           </p>
-
         </div>
       </div>
     </div>
