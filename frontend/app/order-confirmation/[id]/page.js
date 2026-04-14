@@ -123,8 +123,8 @@ export default function OrderConfirmationPage() {
           </div>
 
           <p style={{ color: c.textSub, marginBottom: '30px' }}>
-            Fecha: {new Date(order.created_at).toLocaleDateString('es-CO', {
-              year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            Fecha: {new Date(order.created_at + 'Z').toLocaleString('es-CO', {
+              year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
             })}
           </p>
 

@@ -1,99 +1,87 @@
-'use client'   // ⬅️ Obligatorio en Next.js 14 para usar hooks (useState, useEffect, etc.)
+'use client'
 
-// ═══════════════════════════════════════════════════════════════════════════
-// IMPORTACIONES
-// ═══════════════════════════════════════════════════════════════════════════
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { API_URL } from '../lib/api'      // URL del backend (http://localhost:8000)
-import { c } from '../lib/styles'         // Colores y estilos del design system
+import { API_URL } from '../lib/api'
+import { c } from '../lib/styles'
 
 export default function VerifyEmailPage() {
-  // ═════════════════════════════════════════════════════════════════════════
-  // HOOKS DE NEXT.JS
-  // ═════════════════════════════════════════════════════════════════════════
-  const router = useRouter()                    // Para redirigir a otras páginas
-  const searchParams = useSearchParams()        // Para leer parámetros de la URL (?email=...)
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
-  // ═════════════════════════════════════════════════════════════════════════
-  // ESTADOS LOCALES (useState)
-  // ═════════════════════════════════════════════════════════════════════════
-  const emailFromUrl = searchParams.get('email') || ''  // Extrae el email de la URL
-  const [email, setEmail] = useState(emailFromUrl)      // Email (solo lectura)
-  const [code, setCode] = useState('')                  // Código de 6 dígitos ingresado
-  const [loading, setLoading] = useState(false)         // ¿Está enviando la petición?
-  const [error, setError] = useState('')                // Mensaje de error
-  const [success, setSuccess] = useState(false)         // ¿Verificación exitosa?
-  const [resendCooldown, setResendCooldown] = useState(0) // Segundos restantes para reenviar
+  const emailFromUrl = searchParams.get('email') || ''
+  const [email, setEmail] = useState(emailFromUrl)
+  const [code, setCode] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
 
-  // ═════════════════════════════════════════════════════════════════════════
-  // TEMPORIZADOR PARA EL BOTÓN "REENVIAR CÓDIGO"
-  // ═════════════════════════════════════════════════════════════════════════
-  // Cada vez que resendCooldown > 0, se ejecuta un setTimeout que lo reduce en 1
-  // cada segundo, hasta llegar a 0. Así el botón se deshabilita durante 120 seg.
+  // Temporizador para el botón de reenvío
   useEffect(() => {
     if (resendCooldown > 0) {
       const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
-      return () => clearTimeout(timer)   // Limpieza del timer al desmontar o cambiar
+      return () => clearTimeout(timer)
     }
   }, [resendCooldown])
 
-  // ═════════════════════════════════════════════════════════════════════════
-  // FUNCIÓN PARA VERIFICAR EL CÓDIGO INGRESADO
-  // ═════════════════════════════════════════════════════════════════════════
+  // Verificar el código ingresado
   const handleVerify = async (e) => {
-    e.preventDefault()                  // Evita que el formulario recargue la página
+    e.preventDefault()
     if (!email || !code) {
       setError('Todos los campos son obligatorios')
       return
     }
-    setLoading(true)                    // Deshabilita el botón mientras se procesa
-    setError('')                        // Limpia errores anteriores
 
-    // Llamada al backend: POST /api/users/verify-code/
-    const res = await fetch(`${API_URL}/api/users/verify-code/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, code }),
-    })
-    const data = await res.json()
-    setLoading(false)                   // Reactiva el botón
+    setLoading(true)
+    setError('')
 
-    if (res.ok) {
-      // Código correcto → mostrar éxito y redirigir al login en 3 segundos
-      setSuccess(true)
-      setTimeout(() => router.push('/login'), 3000)
-    } else {
-      // Código incorrecto, expirado, o cuenta ya verificada
-      setError(data.error || 'Error al verificar')
+    try {
+      const res = await fetch(`${API_URL}/api/users/verify-code/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      })
+      const data = await res.json()
+
+      if (res.ok) {
+        setSuccess(true)
+        setTimeout(() => router.push('/login'), 3000)
+      } else {
+        setError(data.error || 'Error al verificar')
+        setCode('') // Limpiar el campo para facilitar un nuevo intento
+      }
+    } catch (err) {
+      setError('Error conectando con el servidor')
+    } finally {
+      setLoading(false) // ← Garantiza que el botón se reactive siempre
     }
   }
 
-  // ═════════════════════════════════════════════════════════════════════════
-  // FUNCIÓN PARA REENVIAR EL CÓDIGO (RESPETANDO COOLDOWN DE 2 MINUTOS)
-  // ═════════════════════════════════════════════════════════════════════════
+  // Reenviar código de verificación (con cooldown)
   const handleResend = async () => {
-    if (resendCooldown > 0) return       // Bloqueado por el temporizador
-    setError('')                         // Limpia errores anteriores
+    if (resendCooldown > 0) return
+    setError('')
 
-    const res = await fetch(`${API_URL}/api/users/resend-verification/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    })
-    const data = await res.json()
+    try {
+      const res = await fetch(`${API_URL}/api/users/resend-verification/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json()
 
-    if (res.ok) {
-      setResendCooldown(120)             // 120 segundos = 2 minutos de espera
-      alert('Nuevo código enviado a tu correo')
-    } else {
-      setError(data.error || 'Error al reenviar')
+      if (res.ok) {
+        setResendCooldown(120) // 2 minutos
+        alert('Nuevo código enviado a tu correo')
+      } else {
+        setError(data.error || 'Error al reenviar')
+      }
+    } catch (err) {
+      setError('Error de conexión al reenviar')
     }
   }
 
-  // ═════════════════════════════════════════════════════════════════════════
-  // RENDERIZADO DE LA PÁGINA
-  // ═════════════════════════════════════════════════════════════════════════
   return (
     <div style={{
       backgroundColor: c.bg,
@@ -112,16 +100,14 @@ export default function VerifyEmailPage() {
       }}>
         <h2 style={{ marginBottom: '20px', textAlign: 'center' }}>Verificar cuenta</h2>
 
-        {/* Si la verificación fue exitosa, muestra mensaje de éxito */}
         {success ? (
           <div style={{ textAlign: 'center' }}>
             <p style={{ color: c.success }}>✅ ¡Cuenta verificada!</p>
             <p style={{ color: c.textSub }}>Redirigiendo al login...</p>
           </div>
         ) : (
-          /* Formulario para ingresar el código */
           <form onSubmit={handleVerify}>
-            {/* Campo de email (SOLO LECTURA, NO SE PUEDE EDITAR) */}
+            {/* Email (solo lectura) */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '6px', color: c.textSub }}>
                 Email
@@ -129,8 +115,8 @@ export default function VerifyEmailPage() {
               <input
                 type="email"
                 value={email}
-                readOnly                      // ⬅️ El usuario no puede escribir
-                disabled                      // ⬅️ Aparece visualmente deshabilitado
+                readOnly
+                disabled
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -138,7 +124,7 @@ export default function VerifyEmailPage() {
                   border: `1px solid ${c.border}`,
                   borderRadius: '6px',
                   color: c.textWeak,
-                  cursor: 'not-allowed',      // ⬅️ Cursor de "prohibido"
+                  cursor: 'not-allowed',
                 }}
               />
               <p style={{ fontSize: '12px', color: c.textWeak, marginTop: '4px' }}>
@@ -146,7 +132,7 @@ export default function VerifyEmailPage() {
               </p>
             </div>
 
-            {/* Campo para el código de verificación */}
+            {/* Código de verificación */}
             <div style={{ marginBottom: '24px' }}>
               <label style={{ display: 'block', marginBottom: '6px', color: c.textSub }}>
                 Código de verificación
@@ -172,14 +158,12 @@ export default function VerifyEmailPage() {
               />
             </div>
 
-            {/* Mensaje de error (si existe) */}
             {error && (
               <p style={{ color: c.error, marginBottom: '16px' }}>
                 {error}
               </p>
             )}
 
-            {/* Botón de verificar */}
             <button
               type="submit"
               disabled={loading}
@@ -198,7 +182,6 @@ export default function VerifyEmailPage() {
               {loading ? 'Verificando...' : 'Verificar cuenta'}
             </button>
 
-            {/* Botón para reenviar código (con temporizador) */}
             <div style={{ marginTop: '16px', textAlign: 'center' }}>
               <button
                 type="button"

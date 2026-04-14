@@ -483,7 +483,7 @@ export default function PerfilPage() {
                         <div>
                           <h3 style={{ margin: 0, fontSize: '18px' }}>Pedido #{order.order_number}</h3>
                           <p style={{ margin: '4px 0 0', color: c.textSub, fontSize: '13px' }}>
-                            {new Date(order.created_at).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            {new Date(order.created_at + 'Z').toLocaleString('es-CO', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
                           </p>
                         </div>
                         <span style={{

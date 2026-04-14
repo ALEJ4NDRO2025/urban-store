@@ -162,7 +162,9 @@ export default function AdminPage() {
                       <div style={{ fontSize: '12px', color: c.textSub }}>{order.shipping_address.email}</div>
                     </td>
                     <td style={{ padding: '16px', fontSize: '14px' }}>
-                      {new Date(order.created_at).toLocaleDateString('es-CO')}
+                      {new Date(order.created_at + 'Z').toLocaleString('es-CO', {
+                        year: 'numeric', month: 'long', day: 'numeric'
+                      })}
                     </td>
                     <td style={{ padding: '16px', fontWeight: '700', color: c.primary }}>
                       ${order.total.toLocaleString()}
