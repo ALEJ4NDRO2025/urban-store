@@ -2,14 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { c, styles } from '../lib/styles'
 
 export default function ProductCard({ product }) {
   const [hovering, setHovering] = useState(false)
   const [imageLoading, setImageLoading] = useState(true)
 
-  // Determinar disponibilidad
   const inStock = product.stock > 0
   const stockMessage = inStock 
     ? `${product.stock} disponibles` 
@@ -22,13 +20,21 @@ export default function ProductCard({ product }) {
     >
       <div
         style={{
+          // Mantenemos la estructura base de styles.productCard
           ...styles.productCard,
           ...(hovering && styles.productCardHover),
+          // Aplicamos Glassmorphism por encima (sobrescribe fondo y borde)
+          backgroundColor: hovering ? 'rgba(26, 26, 26, 0.9)' : 'rgba(26, 26, 26, 0.6)',
+          backdropFilter: 'blur(12px)',
+          border: hovering 
+            ? '1px solid rgba(184, 134, 11, 0.5)' 
+            : '1px solid rgba(184, 134, 11, 0.15)',
+          borderRadius: '20px',
           outline: 'none',
-          border: 'none',
         }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
+        data-aos="fade-up"
       >
         {/* IMAGEN CON OVERLAY */}
         <div
@@ -39,7 +45,6 @@ export default function ProductCard({ product }) {
             height: '280px',
           }}
         >
-          {/* Skeleton mientras carga */}
           {imageLoading && (
             <div
               style={{
@@ -53,7 +58,6 @@ export default function ProductCard({ product }) {
             />
           )}
 
-          {/* Imagen */}
           <img
             src={product.images?.[0] || '/placeholder.jpg'}
             alt={product.name}
@@ -67,7 +71,6 @@ export default function ProductCard({ product }) {
             onLoad={() => setImageLoading(false)}
           />
 
-          {/* OVERLAY CON BADGE DE STOCK */}
           <div
             style={{
               position: 'absolute',
@@ -75,20 +78,16 @@ export default function ProductCard({ product }) {
               right: '12px',
               backgroundColor: inStock ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)',
               color: '#FFFFFF',
-              padding: '6px 12px',
-              borderRadius: '4px',
-              fontSize: '11px',
+              padding: '6px 14px',
+              borderRadius: '30px',
+              fontSize: '12px',
               fontWeight: '600',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              backdropFilter: 'blur(4px)',
-              animation: hovering ? 'slideInRight 0.3s ease-in-out' : 'none',
+              backdropFilter: 'blur(8px)',
             }}
           >
             {inStock ? '✓ En stock' : '✕ Agotado'}
           </div>
 
-          {/* OVERLAY DORADO AL HOVER */}
           <div
             style={{
               position: 'absolute',
@@ -105,12 +104,10 @@ export default function ProductCard({ product }) {
 
         {/* INFO DEL PRODUCTO */}
         <div style={styles.productInfo}>
-          {/* CATEGORÍA */}
           <div style={styles.productCategory}>
             {product.category || 'Sin categoría'}
           </div>
 
-          {/* NOMBRE */}
           <h3
             style={{
               ...styles.productName,
@@ -120,7 +117,6 @@ export default function ProductCard({ product }) {
             {product.name}
           </h3>
 
-          {/* DESCRIPCIÓN CORTA (si existe) */}
           {product.description && (
             <p
               style={{
@@ -138,7 +134,6 @@ export default function ProductCard({ product }) {
             </p>
           )}
 
-          {/* PRECIO Y STOCK */}
           <div
             style={{
               display: 'flex',
@@ -163,14 +158,12 @@ export default function ProductCard({ product }) {
             </div>
           </div>
 
-          {/* BOTÓN */}
           <button
             style={styles.productButton(hovering)}
             onMouseEnter={() => setHovering(true)}
             onMouseLeave={() => setHovering(false)}
             onClick={(e) => {
               e.preventDefault()
-              // Aquí irá la lógica de "agregar al carrito"
               console.log('Agregar al carrito:', product.slug)
             }}
           >
