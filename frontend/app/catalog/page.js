@@ -1,153 +1,219 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-import ProductCard from './productCard'
-import CatalogFilters from './catalogFilters'
-import { c, styles } from '../lib/styles'
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import ProductCard from './productCard';
+import CatalogFilters from './catalogFilters';
+import { c, styles } from '../lib/styles';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function CatalogPage() {
-  const searchParams = useSearchParams()
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [filtering, setFiltering] = useState(false)
+  const searchParams = useSearchParams();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filtering, setFiltering] = useState(false);
 
-  // Parámetros de filtro
-  const category = searchParams.get('category')
-  const size = searchParams.get('size')
-  const minPrice = searchParams.get('min_price')
-  const maxPrice = searchParams.get('max_price')
+  const category = searchParams.get('category');
+  const size = searchParams.get('size');
+  const minPrice = searchParams.get('min_price');
+  const maxPrice = searchParams.get('max_price');
 
-  // Fetch de productos
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        setFiltering(true)
-        setLoading(true)
+        setFiltering(true);
+        setLoading(true);
 
-        // Construir URL con parámetros
-        const params = new URLSearchParams()
-        if (category) params.append('category', category)
-        if (size) params.append('size', size)
-        if (minPrice) params.append('min_price', minPrice)
-        if (maxPrice) params.append('max_price', maxPrice)
+        const params = new URLSearchParams();
+        if (category) params.append('category', category);
+        if (size) params.append('size', size);
+        if (minPrice) params.append('min_price', minPrice);
+        if (maxPrice) params.append('max_price', maxPrice);
 
-        const url = `${API_URL}/api/products/?${params.toString()}`
-        const response = await fetch(url)
+        const url = `${API_URL}/api/products/?${params.toString()}`;
+        const response = await fetch(url);
 
         if (!response.ok) {
-          throw new Error('Error al cargar productos')
+          throw new Error('Error al cargar productos');
         }
 
-        const data = await response.json()
-        setProducts(data.results || data || [])
-        setError(null)
+        const data = await response.json();
+        setProducts(data.results || data || []);
+        setError(null);
       } catch (err) {
-        console.error('Error:', err)
-        setError(err.message)
+        console.error('Error:', err);
+        setError(err.message);
       } finally {
-        setLoading(false)
-        setFiltering(false)
+        setLoading(false);
+        setFiltering(false);
       }
-    }
+    };
 
-    fetchProducts()
-  }, [category, size, minPrice, maxPrice])
+    fetchProducts();
+  }, [category, size, minPrice, maxPrice]);
 
   return (
-    <div style={styles.pageSection}>
-      <style>{`
-        /* Animación para la carga de filtros */
+    <div
+      style={{
+        background: '#0D0D0D',
+        color: c.textMain,
+        minHeight: '100vh',
+        padding: 'clamp(40px, 5vw, 60px) 24px',
+      }}
+    >
+      {/* ESTILOS GLOBALES (igual que en el home) */}
+      <style jsx global>{`
+        @keyframes gradientShift {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+        @keyframes fadeInDown {
+          from { opacity: 0; transform: translateY(-20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
         .loading-shimmer {
-          animation: shimmer 2s infinite;
-          background-image: linear-gradient(
-            90deg,
-            ${c.bgDark} 0%,
-            ${c.card} 50%,
-            ${c.bgDark} 100%
-          );
-          background-size: 1000px 100%;
+          background: linear-gradient(90deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%);
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
         }
       `}</style>
 
-      {/* HEADER */}
+      {/* HEADER CON GRADIENTE ANIMADO (como el título del home) */}
       <div
         style={{
-          marginBottom: '40px',
-          animation: 'fadeIn 0.6s ease-in-out',
+          marginBottom: '48px',
+          textAlign: 'center',
+          animation: 'fadeInDown 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
-        <h1 style={styles.heading1}>Catálogo</h1>
-        <p style={styles.body}>
+        <h1
+          style={{
+            fontSize: 'clamp(36px, 8vw, 56px)',
+            fontWeight: '900',
+            marginBottom: '16px',
+            background: `linear-gradient(135deg, #FFFFFF 0%, ${c.primary} 40%, #FFD700 80%, #FFFFFF 100%)`,
+            backgroundSize: '300% auto',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            animation: 'gradientShift 8s ease infinite',
+            letterSpacing: '2px',
+          }}
+        >
+          Catálogo
+        </h1>
+        <p
+          style={{
+            fontSize: 'clamp(16px, 2vw, 20px)',
+            color: c.textSub,
+            maxWidth: '600px',
+            margin: '0 auto',
+            fontWeight: 300,
+          }}
+        >
           Descubre nuestra colección de ropa urbana y accesorios premium
         </p>
       </div>
 
-      {/* FILTROS */}
+      {/* FILTROS (con glassmorphism ya aplicado en CatalogFilters) */}
       <div
         style={{
-          marginBottom: '32px',
-          animation: 'slideInLeft 0.5s ease-in-out',
+          marginBottom: '40px',
+          animation: 'fadeInUp 0.6s ease-out',
         }}
       >
         <CatalogFilters />
       </div>
 
-      {/* ESTADO DE CARGA */}
+      {/* ESTADO DE CARGA (skeleton más elegante) */}
       {loading && (
         <div
           style={{
             textAlign: 'center',
-            padding: '40px',
-            animation: 'fadeIn 0.3s ease-in-out',
+            padding: '60px 20px',
           }}
         >
           <div
+            className="loading-shimmer"
             style={{
-              display: 'inline-block',
-              width: '40px',
-              height: '40px',
-              border: `3px solid ${c.border}`,
-              borderTop: `3px solid ${c.primary}`,
+              width: '80px',
+              height: '80px',
               borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
+              margin: '0 auto 24px',
             }}
           />
-          <p style={{ ...styles.body, marginTop: '16px' }}>
-            Cargando productos...
+          <p style={{ color: c.textSub, fontSize: '16px' }}>
+            Cargando productos únicos...
           </p>
         </div>
       )}
 
-      {/* ESTADO DE ERROR */}
+      {/* ESTADO DE ERROR (con botón de reintento) */}
       {error && !loading && (
-        <div style={styles.error}>
-          <strong>Error:</strong> {error}
+        <div
+          style={{
+            background: 'rgba(220, 38, 38, 0.1)',
+            border: `1px solid #dc2626`,
+            borderRadius: '16px',
+            padding: '24px',
+            textAlign: 'center',
+            marginBottom: '32px',
+          }}
+        >
+          <p style={{ color: '#dc2626', fontWeight: 500 }}>⚠️ {error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: '12px',
+              background: c.primary,
+              color: '#000',
+              border: 'none',
+              borderRadius: '40px',
+              padding: '8px 24px',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Reintentar
+          </button>
         </div>
       )}
 
       {/* RESULTADOS */}
       {!loading && products.length > 0 && (
         <div>
-          {/* CONTADOR */}
+          {/* CONTADOR CON GLASSMORPHISM */}
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: '24px',
-              padding: '16px',
-              backgroundColor: c.bgDark,
-              borderRadius: '8px',
+              flexWrap: 'wrap',
+              gap: '16px',
+              marginBottom: '32px',
+              padding: '16px 24px',
+              background: 'rgba(26, 26, 26, 0.6)',
+              backdropFilter: 'blur(12px)',
+              borderRadius: '60px',
               border: `1px solid ${c.border}`,
-              animation: 'slideInRight 0.4s ease-in-out',
+              animation: 'fadeInUp 0.5s ease-out',
             }}
           >
-            <p style={styles.body}>
-              <span style={{ color: c.primary, fontWeight: '700' }}>
+            <p style={{ margin: 0, color: c.textSub }}>
+              <span style={{ color: c.primary, fontWeight: 'bold', fontSize: '1.2rem' }}>
                 {products.length}
               </span>{' '}
               producto{products.length !== 1 ? 's' : ''} encontrado
@@ -158,25 +224,45 @@ export default function CatalogPage() {
                 fontSize: '12px',
                 color: c.textWeak,
                 textTransform: 'uppercase',
-                letterSpacing: '0.5px',
+                letterSpacing: '1px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
               }}
             >
-              {filtering ? 'Filtrando...' : 'Listo'}
+              {filtering && (
+                <>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: '12px',
+                      height: '12px',
+                      border: `2px solid ${c.primary}`,
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 0.8s linear infinite',
+                    }}
+                  />
+                  <span>Filtrando...</span>
+                </>
+              )}
+              {!filtering && <span>✓ Listo</span>}
             </div>
           </div>
 
-          {/* GRID DE PRODUCTOS */}
+          {/* GRID DE PRODUCTOS (con animación escalonada) */}
           <div
             style={{
-              ...styles.gridContainer,
-              animation: 'fadeIn 0.5s ease-in-out',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: '32px',
             }}
           >
             {products.map((product, index) => (
               <div
                 key={product._id || index}
                 style={{
-                  animation: `scaleUp 0.4s ease-in-out ${index * 0.05}s backwards`,
+                  animation: `fadeInUp 0.5s ease-out ${index * 0.05}s backwards`,
                 }}
               >
                 <ProductCard product={product} />
@@ -191,34 +277,29 @@ export default function CatalogPage() {
         <div
           style={{
             textAlign: 'center',
-            padding: '60px 20px',
-            animation: 'fadeIn 0.5s ease-in-out',
+            padding: '80px 20px',
+            background: 'rgba(184, 134, 11, 0.05)',
+            borderRadius: '40px',
+            border: `1px dashed ${c.primary}`,
+            animation: 'fadeInUp 0.5s ease-out',
           }}
         >
-          <div
+          <div style={{ fontSize: '64px', marginBottom: '20px', opacity: 0.6 }}>✨</div>
+          <h2
             style={{
-              fontSize: '48px',
-              marginBottom: '16px',
-              opacity: 0.5,
+              fontSize: 'clamp(28px, 5vw, 36px)',
+              fontWeight: '800',
+              color: c.primary,
+              marginBottom: '12px',
             }}
           >
-            ✗
-          </div>
-          <h2 style={styles.heading2}>No hay productos</h2>
-          <p style={styles.body}>
+            No hay productos
+          </h2>
+          <p style={{ color: c.textSub, fontSize: '16px' }}>
             Intenta ajustar tus filtros o explora otras categorías
           </p>
         </div>
       )}
-
-      {/* ANIMACIÓN SPINNER */}
-      <style>{`
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
     </div>
-  )
+  );
 }

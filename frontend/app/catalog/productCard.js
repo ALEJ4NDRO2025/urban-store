@@ -1,176 +1,146 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { c, styles } from '../lib/styles'
+import { useState } from 'react';
+import Link from 'next/link';
+
+// Placeholder externo válido
+const PLACEHOLDER_IMG = 'https://placehold.co/600x600/1a1a1a/B8860B?text=Urban+Store';
 
 export default function ProductCard({ product }) {
-  const [hovering, setHovering] = useState(false)
-  const [imageLoading, setImageLoading] = useState(true)
+  const [isHovered, setIsHovered] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
 
-  const inStock = product.stock > 0
-  const stockMessage = inStock 
-    ? `${product.stock} disponibles` 
-    : 'Agotado'
+  if (!product) return null;
+
+  const inStock = product.stock > 0;
+  const productLink = product.slug ? `/catalog/${product.slug}` : `/catalog/${product._id}`;
+  const imageUrl = product.images?.[0] || PLACEHOLDER_IMG;
 
   return (
-    <Link 
-      href={`/catalog/${product.slug}`}
-      style={{ textDecoration: 'none', outline: 'none' }}
-    >
+    <Link href={productLink} style={{ textDecoration: 'none' }}>
       <div
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         style={{
-          // Mantenemos la estructura base de styles.productCard
-          ...styles.productCard,
-          ...(hovering && styles.productCardHover),
-          // Aplicamos Glassmorphism por encima (sobrescribe fondo y borde)
-          backgroundColor: hovering ? 'rgba(26, 26, 26, 0.9)' : 'rgba(26, 26, 26, 0.6)',
+          background: 'rgba(26, 26, 26, 0.5)',
           backdropFilter: 'blur(12px)',
-          border: hovering 
-            ? '1px solid rgba(184, 134, 11, 0.5)' 
-            : '1px solid rgba(184, 134, 11, 0.15)',
-          borderRadius: '20px',
-          outline: 'none',
+          borderRadius: '28px',
+          border: `1px solid ${isHovered ? '#B8860B' : 'rgba(184, 134, 11, 0.15)'}`,
+          overflow: 'hidden',
+          transition: 'all 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1)',
+          transform: isHovered ? 'translateY(-8px)' : 'translateY(0)',
+          boxShadow: isHovered ? '0 25px 40px rgba(0,0,0,0.5), 0 0 20px rgba(184,134,11,0.2)' : 'none',
+          cursor: 'pointer',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
         }}
-        onMouseEnter={() => setHovering(true)}
-        onMouseLeave={() => setHovering(false)}
-        data-aos="fade-up"
       >
-        {/* IMAGEN CON OVERLAY */}
-        <div
-          style={{
-            position: 'relative',
-            overflow: 'hidden',
-            backgroundColor: c.bgDark,
-            height: '280px',
-          }}
-        >
+        <div style={{ position: 'relative', aspectRatio: '1/1', overflow: 'hidden', background: '#1a1a1a' }}>
           {imageLoading && (
             <div
               style={{
-                ...styles.skeleton,
                 position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
+                inset: 0,
+                background: 'linear-gradient(90deg, #2a2a2a, #3a3a3a, #2a2a2a)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 1.5s infinite',
               }}
             />
           )}
-
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: `radial-gradient(circle at 30% 30%, #B8860B20, transparent 70%)`,
+              zIndex: 1,
+              opacity: isHovered ? 0.6 : 0,
+              transition: 'opacity 0.3s',
+              pointerEvents: 'none',
+            }}
+          />
           <img
-            src={product.images?.[0] || '/placeholder.jpg'}
+            src={imageUrl}
             alt={product.name}
+            loading="lazy"
             style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              transform: hovering ? 'scale(1.08)' : 'scale(1)',
-              transition: 'transform 0.3s ease-in-out',
+              transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+              transform: isHovered ? 'scale(1.08) rotate(1deg)' : 'scale(1)',
             }}
             onLoad={() => setImageLoading(false)}
+            onError={(e) => {
+              e.currentTarget.src = PLACEHOLDER_IMG;
+              setImageLoading(false);
+            }}
           />
-
           <div
             style={{
               position: 'absolute',
               top: '12px',
               right: '12px',
-              backgroundColor: inStock ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)',
-              color: '#FFFFFF',
-              padding: '6px 14px',
-              borderRadius: '30px',
-              fontSize: '12px',
+              background: inStock ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)',
+              color: '#fff',
+              fontSize: '11px',
               fontWeight: '600',
-              backdropFilter: 'blur(8px)',
+              padding: '4px 12px',
+              borderRadius: '30px',
+              backdropFilter: 'blur(4px)',
+              zIndex: 2,
             }}
           >
-            {inStock ? '✓ En stock' : '✕ Agotado'}
+            {inStock ? 'En stock' : 'Agotado'}
           </div>
-
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: hovering ? 'rgba(184, 134, 11, 0.08)' : 'rgba(184, 134, 11, 0)',
-              transition: 'background-color 0.3s ease-in-out',
-              pointerEvents: 'none',
-            }}
-          />
         </div>
 
-        {/* INFO DEL PRODUCTO */}
-        <div style={styles.productInfo}>
-          <div style={styles.productCategory}>
-            {product.category || 'Sin categoría'}
+        <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div
+            style={{
+              fontSize: '12px',
+              color: '#B8860B',
+              textTransform: 'uppercase',
+              letterSpacing: '1.5px',
+              marginBottom: '8px',
+              fontWeight: 600,
+            }}
+          >
+            {product.category || 'Urban'}
           </div>
-
           <h3
             style={{
-              ...styles.productName,
-              color: hovering ? c.primary : c.textMain,
+              fontSize: 'clamp(18px, 3vw, 22px)',
+              fontWeight: '700',
+              margin: '0 0 12px',
+              color: '#fff',
+              lineHeight: 1.3,
             }}
           >
             {product.name}
           </h3>
-
-          {product.description && (
-            <p
-              style={{
-                fontSize: '13px',
-                color: c.textWeak,
-                marginBottom: '8px',
-                lineHeight: '1.4',
-                maxHeight: hovering ? '40px' : '0px',
-                overflow: 'hidden',
-                opacity: hovering ? 1 : 0,
-                transition: 'all 0.3s ease-in-out',
-              }}
-            >
-              {product.description.substring(0, 50)}...
-            </p>
-          )}
-
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              fontSize: 'clamp(22px, 4vw, 28px)',
+              fontWeight: '800',
+              background: `linear-gradient(135deg, #B8860B, #FFD700)`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
               marginTop: 'auto',
-              paddingTop: '12px',
-              borderTop: `1px solid ${hovering ? c.border : c.border}`,
             }}
           >
-            <div style={styles.productPrice}>
-              ${product.price?.toLocaleString()}
-            </div>
-            <div
-              style={{
-                fontSize: '11px',
-                color: inStock ? c.success : c.error,
-                fontWeight: '500',
-              }}
-            >
-              {stockMessage}
-            </div>
+            ${product.price?.toLocaleString()}
           </div>
-
-          <button
-            style={styles.productButton(hovering)}
-            onMouseEnter={() => setHovering(true)}
-            onMouseLeave={() => setHovering(false)}
-            onClick={(e) => {
-              e.preventDefault()
-              console.log('Agregar al carrito:', product.slug)
-            }}
-          >
-            {inStock ? 'Ver Detalles' : 'No Disponible'}
-          </button>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+      `}</style>
     </Link>
-  )
+  );
 }
