@@ -9,6 +9,8 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+from dotenv import load_dotenv
+load_dotenv()
 
 from pathlib import Path
 
@@ -185,3 +187,9 @@ EMAIL_USE_SSL = False
 EMAIL_HOST_USER = config.get('EMAIL_HOST_USER', 'goldenash04@gmail.com')
 EMAIL_HOST_PASSWORD = config.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = f'Urban Store <{EMAIL_HOST_USER}>'
+
+import os
+
+# Stripe
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')

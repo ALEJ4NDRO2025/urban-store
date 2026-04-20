@@ -34,6 +34,7 @@ class Order(Document):
     created_at       = DateTimeField(default=datetime.utcnow)
     updated_at       = DateTimeField(default=datetime.utcnow)
     paid_at          = DateTimeField()
+    payment_intent_id    = StringField()  # Para integrar con Stripe
 
     meta = {'collection': 'orders', 'indexes': ['user_id', 'order_number']}
 
