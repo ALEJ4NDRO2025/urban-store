@@ -1,19 +1,95 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useCartStore } from '../lib/cartStore'
-import { c, styles, mergeStyles } from '../lib/styles'
-import { departamentos, departamentosYCiudades } from '../lib/colombiaData'
+// ============================================================
+// 1. IMPORTS Y CONFIGURACIÓN INICIAL
+// ============================================================
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import { useCartStore } from '../lib/cartStore';
+import { c, styles, mergeStyles } from '../lib/styles';
+import { departamentos, departamentosYCiudades } from '../lib/colombiaData';
+import CheckoutForm from './CheckoutForm'; // Componente con el formulario de tarjeta
+
+// URL base del backend (desarrollo)
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// Clave publicable de Stripe (modo test). Debe estar en .env.local
+const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
+
+// ============================================================
+// 2. PERSONALIZACIÓN DE STRIPE ELEMENTS (colores Urban Store)
+// ============================================================
+
+const stripeAppearance = {
+  theme: 'stripe',                 // tema base
+  variables: {
+    colorPrimary: '#B8860B',       // dorado principal (bordes, focus)
+    colorBackground: '#1a1a1a',    // fondo oscuro del campo
+    colorText: '#FFFFFF',          // texto blanco
+    colorDanger: '#ef4444',        // color para errores
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    borderRadius: '14px',          // bordes redondeados
+    spacingUnit: '4px',
+    colorTextSecondary: '#a0a0a0', // texto secundario (placeholders)
+  },
+  rules: {
+    '.Input': {
+      backgroundColor: 'rgba(38, 38, 38, 0.6)',
+      border: '1px solid rgba(184, 134, 11, 0.2)',
+      padding: '14px 16px',
+      borderRadius: '14px',
+      color: '#FFFFFF',
+    },
+    '.Input:focus': {
+      borderColor: '#B8860B',
+      boxShadow: '0 0 0 1px #B8860B',
+    },
+    '.Label': {
+      fontSize: '13px',
+      color: '#a0a0a0',
+      marginBottom: '6px',
+      fontWeight: 500,
+    },
+  },
+};
+
+// ============================================================
+// 3. COMPONENTE DE PAGO (PASO 2)
+//    Recibe client_secret y orderId y envuelve CheckoutForm con Elements
+// ============================================================
+
+function PaymentStep({ clientSecret, orderId }) {
+  // Se pasa la apariencia personalizada junto con el clientSecret
+  return (
+    <Elements stripe={stripePromise} options={{ clientSecret, appearance: stripeAppearance }}>
+      <CheckoutForm clientSecret={clientSecret} orderId={orderId} />
+    </Elements>
+  );
+}
+
+// ============================================================
+// 4. COMPONENTE PRINCIPAL DEL CHECKOUT
+// ============================================================
 
 export default function CheckoutPage() {
-  const router = useRouter()
-  const { items, total, createOrder } = useCartStore()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const router = useRouter();
+  // Obtenemos el carrito y la función para crear orden desde el store de Zustand
+  const { items, total, createOrder } = useCartStore();
 
+  // Estados generales
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Estados para el flujo de pagos
+  const [step, setStep] = useState('address');   // 'address' o 'payment'
+  const [orderId, setOrderId] = useState(null);
+  const [clientSecret, setClientSecret] = useState(null);
+
+  // Datos del formulario de dirección
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -23,79 +99,89 @@ export default function CheckoutPage() {
     department: '',
     country: 'Colombia',
     notes: '',
-  })
+  });
 
-  const [phoneDigits, setPhoneDigits] = useState('')
-  const [availableCities, setAvailableCities] = useState([])
+  const [phoneDigits, setPhoneDigits] = useState('');
+  const [availableCities, setAvailableCities] = useState([]);
 
-  // Verificar autenticación y precargar email
+  // --------------------------------------------------------
+  // 4.1 Verificar autenticación y precargar email del usuario
+  // --------------------------------------------------------
   useEffect(() => {
-    const access = localStorage.getItem('access')
+    const access = localStorage.getItem('access');
     if (!access) {
-      router.push('/login')
-      return
+      router.push('/login');
+      return;
     }
-    const userRaw = localStorage.getItem('user')
+    const userRaw = localStorage.getItem('user');
     if (userRaw) {
       try {
-        const user = JSON.parse(userRaw)
-        setForm((prev) => ({ ...prev, email: user.email || '' }))
+        const user = JSON.parse(userRaw);
+        setForm((prev) => ({ ...prev, email: user.email || '' }));
       } catch (_) {}
     }
-  }, [])
+  }, [router]);
 
-  // Actualizar ciudades según departamento seleccionado
+  // --------------------------------------------------------
+  // 4.2 Actualizar lista de ciudades según el departamento seleccionado
+  // --------------------------------------------------------
   useEffect(() => {
     if (form.department && departamentosYCiudades[form.department]) {
-      setAvailableCities(departamentosYCiudades[form.department])
+      setAvailableCities(departamentosYCiudades[form.department]);
       if (form.city !== '__OTHER__' && !departamentosYCiudades[form.department].includes(form.city)) {
-        setForm(prev => ({ ...prev, city: '', customCity: '' }))
+        setForm(prev => ({ ...prev, city: '', customCity: '' }));
       }
     } else {
-      setAvailableCities([])
+      setAvailableCities([]);
     }
-  }, [form.department])
+  }, [form.department]);
 
+  // --------------------------------------------------------
+  // 4.3 Manejadores de cambios en el formulario
+  // --------------------------------------------------------
   const handleChange = (e) => {
-    const { name, value } = e.target
-    setForm({ ...form, [name]: value })
-  }
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+  };
 
   const handlePhoneChange = (e) => {
-    const raw = e.target.value
-    const digits = raw.replace(/\D/g, '')
-    const limited = digits.slice(0, 10)
-    setPhoneDigits(limited)
-  }
+    const raw = e.target.value;
+    const digits = raw.replace(/\D/g, '');
+    const limited = digits.slice(0, 10);
+    setPhoneDigits(limited);
+  };
 
-  const handleSubmit = async () => {
-    const ciudadValida = form.city === '__OTHER__' ? form.customCity.trim() !== '' : form.city !== ''
+  // --------------------------------------------------------
+  // 4.4 Envío del formulario de dirección: crea la orden y luego el PaymentIntent
+  // --------------------------------------------------------
+  const handleAddressSubmit = async () => {
+    // Validaciones del formulario
+    const ciudadValida = form.city === '__OTHER__' ? form.customCity.trim() !== '' : form.city !== '';
     if (!form.name || !form.email || !form.address || !ciudadValida || !form.department) {
-      setError('Por favor completa todos los campos obligatorios.')
-      return
+      setError('Por favor completa todos los campos obligatorios.');
+      return;
     }
     if (phoneDigits.trim() === '') {
-      setError('El teléfono es obligatorio.')
-      return
+      setError('El teléfono es obligatorio.');
+      return;
     }
     if (items.length === 0) {
-      setError('Tu carrito está vacío.')
-      return
+      setError('Tu carrito está vacío.');
+      return;
     }
 
-    const length = phoneDigits.length
-    const isMobile = length === 10 && phoneDigits[0] === '3'
-    const isFixed = length === 7 && phoneDigits[0] !== '3'
+    const length = phoneDigits.length;
+    const isMobile = length === 10 && phoneDigits[0] === '3';
+    const isFixed = length === 7 && phoneDigits[0] !== '3';
     if (!isMobile && !isFixed) {
-      setError('Ingresa un número colombiano válido: 10 dígitos para móvil (comienza en 3) o 7 dígitos para fijo.')
-      return
+      setError('Ingresa un número colombiano válido: 10 dígitos para móvil (comienza en 3) o 7 dígitos para fijo.');
+      return;
     }
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
-    const fullPhone = `+57 ${phoneDigits}`
-
+    const fullPhone = `+57 ${phoneDigits}`;
     const shippingAddress = {
       email: form.email,
       name: form.name,
@@ -104,191 +190,185 @@ export default function CheckoutPage() {
       city: form.city === '__OTHER__' ? form.customCity : form.city,
       department: form.department,
       country: form.country,
-    }
+    };
 
-    const order = await createOrder(shippingAddress, form.notes)
+    // 1. Crear la orden en el backend (usando la función del store)
+    const order = await createOrder(shippingAddress, form.notes);
 
     if (!order || order.error) {
-      setError(order?.error || 'No se pudo crear la orden. Intenta de nuevo.')
-      setLoading(false)
-      return
+      setError(order?.error || 'No se pudo crear la orden. Intenta de nuevo.');
+      setLoading(false);
+      return;
     }
 
-    router.push(`/order-confirmation/${order.id}`)
+    // 2. Obtener client_secret de Stripe
+    try {
+      const token = localStorage.getItem('access');
+      const paymentRes = await fetch(`${API_URL}/api/payments/create-payment-intent/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ order_id: order.id }),
+      });
+
+      if (!paymentRes.ok) {
+        const errData = await paymentRes.json();
+        throw new Error(errData.error || 'Error al iniciar el pago');
+      }
+
+      const { client_secret } = await paymentRes.json();
+      setOrderId(order.id);
+      setClientSecret(client_secret);
+      setStep('payment'); // Cambiar al paso de pago
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
+  // --------------------------------------------------------
+  // 4.5 Renderizado condicional: si estamos en paso de pago, mostrar Stripe
+  // --------------------------------------------------------
+  if (step === 'payment' && clientSecret) {
+    return (
+      <div style={{ ...styles.page, display: 'block', padding: 0 }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(20px,5vw,40px)' }}>
+          <h1 style={{ ...styles.heading2, textAlign: 'center' }}>Pagar con tarjeta</h1>
+          <PaymentStep clientSecret={clientSecret} orderId={orderId} />
+        </div>
+      </div>
+    );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ESTILOS MEJORADOS (Glassmorphism sutil)
-  // ═══════════════════════════════════════════════════════════════════════════
-  const containerStyle = {
-    maxWidth: '1000px',
-    margin: '0 auto',
-    padding: 'clamp(20px, 5vw, 40px) clamp(16px, 4vw, 20px)',
-  }
-
-  const formCardStyle = {
-    backgroundColor: 'rgba(26, 26, 26, 0.4)',
-    backdropFilter: 'blur(12px)',
-    border: '1px solid rgba(184, 134, 11, 0.15)',
-    borderRadius: '24px',
-    padding: 'clamp(20px, 4vw, 32px)',
-  }
-
-  const summaryCardStyle = {
-    backgroundColor: 'rgba(26, 26, 26, 0.4)',
-    backdropFilter: 'blur(12px)',
-    border: '1px solid rgba(184, 134, 11, 0.2)',
-    borderRadius: '24px',
-    padding: 'clamp(20px, 4vw, 28px)',
-    position: 'sticky',
-    top: '20px',
-  }
-
-  const inputStyle = {
-    width: '100%',
-    padding: '14px 16px',
-    backgroundColor: 'rgba(38, 38, 38, 0.6)',
-    backdropFilter: 'blur(8px)',
-    border: `1px solid ${c.border}`,
-    borderRadius: '14px',
-    color: c.textMain,
-    fontSize: '15px',
-    boxSizing: 'border-box',
-    outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-  }
-
-  const labelStyle = {
-    display: 'block',
-    color: c.textSub,
-    fontSize: '13px',
-    marginBottom: '6px',
-    fontWeight: '500',
-    letterSpacing: '0.3px',
-  }
-
+  // --------------------------------------------------------
+  // 4.6 Paso 1: Formulario de dirección de envío (diseño Glassmorphism)
+  // --------------------------------------------------------
   return (
     <div style={{ ...styles.page, display: 'block', padding: 0 }}>
-      <div style={containerStyle}>
-        <h1 style={{ ...styles.heading2, fontSize: 'clamp(28px, 6vw, 36px)' }}>Checkout</h1>
-        <p style={{ ...styles.body, marginBottom: 'clamp(30px, 6vw, 40px)' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: 'clamp(20px,5vw,40px) clamp(16px,4vw,20px)' }}>
+        <h1 style={{ ...styles.heading2, fontSize: 'clamp(28px,6vw,36px)' }}>Checkout</h1>
+        <p style={{ ...styles.body, marginBottom: 'clamp(30px,6vw,40px)' }}>
           Completa tus datos para finalizar el pedido
         </p>
 
         <div className="checkout-grid" style={{
           display: 'grid',
           gridTemplateColumns: '1fr 380px',
-          gap: 'clamp(20px, 4vw, 40px)',
+          gap: 'clamp(20px,4vw,40px)',
         }}>
-          {/* ─── FORMULARIO ─── */}
-          <div style={formCardStyle}>
-            <h2 style={{ fontSize: '20px', marginBottom: '24px', color: c.textMain, fontWeight: '700' }}>
-              Datos de envío
-            </h2>
-
+          {/* COLUMNA IZQUIERDA: FORMULARIO */}
+          <div style={{
+            backgroundColor: 'rgba(26,26,26,0.4)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(184,134,11,0.15)',
+            borderRadius: '24px',
+            padding: 'clamp(20px,4vw,32px)',
+          }}>
+            <h2 style={{ fontSize: '20px', marginBottom: '24px', color: c.textMain, fontWeight: '700' }}>Datos de envío</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               {/* Nombre */}
               <div>
-                <label style={labelStyle}>Nombre completo *</label>
-                <input name="name" value={form.name} onChange={handleChange} placeholder="Wilson Mejía" style={inputStyle} />
+                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Nombre completo *</label>
+                <input name="name" value={form.name} onChange={handleChange} placeholder="Wilson Mejía" style={{
+                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
+                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', boxSizing: 'border-box', outline: 'none'
+                }} />
               </div>
-
-              {/* Email (SOLO LECTURA) */}
+              {/* Email (solo lectura) */}
               <div>
-                <label style={labelStyle}>Email *</label>
-                <input
-                  name="email"
-                  type="email"
-                  value={form.email}
-                  readOnly
-                  style={{
-                    ...inputStyle,
-                    backgroundColor: 'rgba(51,51,51,0.5)',
-                    cursor: 'not-allowed',
-                    color: c.textWeak,
-                  }}
-                />
-                <p style={{ fontSize: '11px', color: c.textWeak, marginTop: '4px' }}>
-                  El correo asociado a tu cuenta no se puede modificar.
-                </p>
+                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Email *</label>
+                <input name="email" type="email" value={form.email} readOnly style={{
+                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(51,51,51,0.5)', backdropFilter: 'blur(8px)',
+                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textWeak, fontSize: '15px', cursor: 'not-allowed'
+                }} />
+                <p style={{ fontSize: '11px', color: c.textWeak, marginTop: '4px' }}>El correo asociado a tu cuenta no se puede modificar.</p>
               </div>
-
-              {/* Teléfono */}
+              {/* Teléfono con prefijo +57 */}
               <div>
-                <label style={labelStyle}>Teléfono *</label>
+                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Teléfono *</label>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <span style={{ position: 'absolute', left: '16px', color: c.textSub, pointerEvents: 'none', zIndex: 1 }}>+57</span>
-                  <input
-                    name="phone"
-                    type="tel"
-                    inputMode="numeric"
-                    value={phoneDigits}
-                    onChange={handlePhoneChange}
-                    placeholder="300 123 4567"
-                    style={{ ...inputStyle, paddingLeft: '52px' }}
-                  />
+                  <input type="tel" inputMode="numeric" value={phoneDigits} onChange={handlePhoneChange} placeholder="300 123 4567" style={{
+                    width: '100%', padding: '14px 16px 14px 52px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
+                    border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', boxSizing: 'border-box', outline: 'none'
+                  }} />
                 </div>
-                <p style={{ fontSize: '11px', color: c.textWeak, marginTop: '4px' }}>
-                  Móvil: 10 dígitos comenzando en 3 · Fijo: 7 dígitos
-                </p>
+                <p style={{ fontSize: '11px', color: c.textWeak, marginTop: '4px' }}>Móvil: 10 dígitos comenzando en 3 · Fijo: 7 dígitos</p>
               </div>
-
               {/* Dirección */}
               <div>
-                <label style={labelStyle}>Dirección *</label>
-                <input name="address" value={form.address} onChange={handleChange} placeholder="Calle 123 # 45-67, Apto 8" style={inputStyle} />
+                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Dirección *</label>
+                <input name="address" value={form.address} onChange={handleChange} placeholder="Calle 123 # 45-67, Apto 8" style={{
+                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
+                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', boxSizing: 'border-box', outline: 'none'
+                }} />
               </div>
-
               {/* Departamento */}
               <div>
-                <label style={labelStyle}>Departamento *</label>
-                <select name="department" value={form.department} onChange={handleChange} style={inputStyle}>
+                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Departamento *</label>
+                <select name="department" value={form.department} onChange={handleChange} style={{
+                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
+                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', outline: 'none'
+                }}>
                   <option value="">Selecciona un departamento</option>
                   {departamentos.map(depto => <option key={depto} value={depto}>{depto}</option>)}
                 </select>
               </div>
-
-              {/* Ciudad */}
+              {/* Ciudad (dependiente del departamento) */}
               <div>
-                <label style={labelStyle}>Ciudad *</label>
-                <select
-                  name="city"
-                  value={form.city}
-                  onChange={(e) => setForm({ ...form, city: e.target.value, customCity: '' })}
-                  style={inputStyle}
-                  disabled={!form.department}
-                >
+                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Ciudad *</label>
+                <select name="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value, customCity: '' })} style={{
+                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
+                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', outline: 'none'
+                }} disabled={!form.department}>
                   <option value="">Selecciona una ciudad</option>
                   {availableCities.map(ciudad => <option key={ciudad} value={ciudad}>{ciudad}</option>)}
                   <option value="__OTHER__">Otro municipio (especificar)</option>
                 </select>
               </div>
-
+              {/* Campo adicional cuando se selecciona "Otro municipio" */}
               {form.city === '__OTHER__' && (
                 <div>
-                  <label style={labelStyle}>Especifica el municipio *</label>
-                  <input name="customCity" value={form.customCity} onChange={handleChange} placeholder="Ej: San Vicente de Chucurí" style={inputStyle} />
+                  <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Especifica el municipio *</label>
+                  <input name="customCity" value={form.customCity} onChange={handleChange} placeholder="Ej: San Vicente de Chucurí" style={{
+                    width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
+                    border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', outline: 'none'
+                  }} />
                 </div>
               )}
-
-              {/* País */}
+              {/* País (solo lectura) */}
               <div>
-                <label style={labelStyle}>País</label>
-                <input name="country" value={form.country} readOnly style={{ ...inputStyle, backgroundColor: 'rgba(51,51,51,0.5)', cursor: 'not-allowed' }} />
+                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>País</label>
+                <input name="country" value={form.country} readOnly style={{
+                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(51,51,51,0.5)', cursor: 'not-allowed',
+                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textWeak, fontSize: '15px'
+                }} />
               </div>
-
-              {/* Notas */}
+              {/* Notas opcionales */}
               <div>
-                <label style={labelStyle}>Notas del pedido (opcional)</label>
-                <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Instrucciones especiales de entrega..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Notas del pedido (opcional)</label>
+                <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Instrucciones especiales de entrega..." rows={3} style={{
+                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
+                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', resize: 'vertical', outline: 'none'
+                }} />
               </div>
             </div>
           </div>
 
-          {/* ─── RESUMEN ─── */}
-          <div style={summaryCardStyle}>
+          {/* COLUMNA DERECHA: RESUMEN DEL PEDIDO */}
+          <div style={{
+            backgroundColor: 'rgba(26,26,26,0.4)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(184,134,11,0.2)',
+            borderRadius: '24px',
+            padding: 'clamp(20px,4vw,28px)',
+            position: 'sticky',
+            top: '20px',
+          }}>
             <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '700' }}>Tu pedido</h2>
-
+            {/* Lista de productos del carrito */}
             <div style={{ marginBottom: '20px' }}>
               {items.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${c.border}` }}>
@@ -300,28 +380,25 @@ export default function CheckoutPage() {
                 </div>
               ))}
             </div>
-
+            {/* Totales */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}><span>Subtotal</span><span>${total?.toLocaleString()}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}><span>Impuestos</span><span>$0</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}><span>Envío</span><span>Gratis</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px', color: c.primary, borderTop: `1px solid ${c.border}`, paddingTop: '12px', marginTop: '4px' }}><span>TOTAL</span><span>${total?.toLocaleString()}</span></div>
             </div>
-
+            {/* Mensaje de error y botones */}
             {error && <div style={{ ...styles.error, marginBottom: '16px' }}>{error}</div>}
-
-            <button onClick={handleSubmit} disabled={loading} style={styles.button(loading)}>
-              {loading ? 'Procesando...' : 'Confirmar pedido'}
+            <button onClick={handleAddressSubmit} disabled={loading} style={styles.button(loading)}>
+              {loading ? 'Procesando...' : 'Continuar al pago'}
             </button>
-
             <button onClick={() => router.push('/carrito')} style={mergeStyles(styles.buttonSecondary(), { marginTop: '10px' })}>
               ← Volver al carrito
             </button>
           </div>
         </div>
       </div>
-
-      {/* Responsive */}
+      {/* Estilo responsivo para móviles */}
       <style jsx>{`
         @media (max-width: 768px) {
           .checkout-grid {
@@ -330,5 +407,5 @@ export default function CheckoutPage() {
         }
       `}</style>
     </div>
-  )
+  );
 }
