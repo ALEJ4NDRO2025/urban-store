@@ -6,7 +6,7 @@ from django.core.mail import send_mail          # ← Para enviar correos
 from .models import Order, OrderItem, ShippingAddress
 from cart.models import Cart
 import jwt
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FUNCIONES AUXILIARES
@@ -120,6 +120,7 @@ class CreateOrderView(APIView):
                 country=addr.get('country', 'Colombia'),
             ),
             notes=request.data.get('notes', ''),
+            expires_at=datetime.utcnow() + timedelta(minutes= 2)
         )
         order.save()
 
