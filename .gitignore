@@ -45,3 +45,7 @@ staticfiles/
 .idea/
 *.sublime-*
 __pycache__/
+
+# Python cache
+__pycache__/
+*.pyc
