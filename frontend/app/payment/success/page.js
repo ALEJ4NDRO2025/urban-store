@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react'; // ← añadir useRef
 import { useSearchParams, useRouter } from 'next/navigation';
 import { c, styles } from '../../lib/styles';
 
@@ -13,7 +13,7 @@ export default function PaymentSuccess() {
   const paymentIntentId = searchParams.get('payment_intent');
   const [status, setStatus] = useState('verifying');
   const [countdown, setCountdown] = useState(10);
-  const [redirecting, setRedirecting] = useState(false);
+  const hasRedirected = useRef(false); // ← ref para evitar redirecciones múltiples
 
   useEffect(() => {
     if (!orderId || !paymentIntentId) {
@@ -40,18 +40,20 @@ export default function PaymentSuccess() {
 
         if (res.ok) {
           setStatus('success');
-          const timer = setInterval(() => {
-            setCountdown((prev) => {
-              if (prev <= 1) {
-                clearInterval(timer);
-                setRedirecting(true);
+          // Redirigir después de 10 segundos (sin conflictos)
+          let seconds = 10;
+          const interval = setInterval(() => {
+            seconds -= 1;
+            setCountdown(seconds);
+            if (seconds <= 0) {
+              clearInterval(interval);
+              if (!hasRedirected.current) {
+                hasRedirected.current = true;
                 router.push(`/order-confirmation/${orderId}`);
-                return 0;
               }
-              return prev - 1;
-            });
+            }
           }, 1000);
-          return () => clearInterval(timer);
+          return () => clearInterval(interval);
         } else {
           setStatus('failed');
         }
@@ -65,13 +67,13 @@ export default function PaymentSuccess() {
   }, [orderId, paymentIntentId, router]);
 
   const handleManualRedirect = () => {
-    if (!redirecting) {
-      setRedirecting(true);
+    if (!hasRedirected.current) {
+      hasRedirected.current = true;
       router.push(`/order-confirmation/${orderId}`);
     }
   };
 
-  // Botón premium reutilizable
+  // Botón premium reutilizable (sin cambios)
   const PremiumButton = ({ onClick, children, variant = 'primary' }) => {
     const isPrimary = variant === 'primary';
     return (
@@ -116,6 +118,7 @@ export default function PaymentSuccess() {
     );
   };
 
+  // Renderizado (igual que original, solo cambió la lógica del useEffect)
   if (status === 'verifying') {
     return (
       <div style={styles.pageSection}>

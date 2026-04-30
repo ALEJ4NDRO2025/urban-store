@@ -11,6 +11,7 @@ from rest_framework import status
 from orders.models import Order
 import jwt
 from datetime import datetime  # ← AÑADIDO: para registrar paid_at
+from django.utils import timezone
 
 # Configurar la clave secreta de Stripe (modo test o live)
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -125,7 +126,8 @@ class ConfirmPaymentView(APIView):
         if intent.status == 'succeeded':
             order.status = 'paid'
             # Añadimos la fecha de pago (opcional pero útil)
-            order.paid_at = datetime.utcnow()
+            order.paid_at = timezone.now()
+            order.expires_at = None  # Si usas expiración, puedes manejarla aquí
             order.save()
             return Response({
                 'status': 'paid',

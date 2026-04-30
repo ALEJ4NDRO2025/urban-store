@@ -7,6 +7,8 @@ from .models import Order, OrderItem, ShippingAddress
 from cart.models import Cart
 import jwt
 from datetime import datetime, timedelta
+from django.utils import timezone
+from datetime import timedelta
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FUNCIONES AUXILIARES
@@ -65,6 +67,8 @@ def order_to_dict(order):
         },
         'notes': order.notes,
         'created_at': order.created_at.isoformat(),
+        'expires_at': order.expires_at.isoformat() if order.expires_at else None,
+        'paid_at': order.paid_at.isoformat() if order.paid_at else None
     }
 
 
@@ -120,7 +124,7 @@ class CreateOrderView(APIView):
                 country=addr.get('country', 'Colombia'),
             ),
             notes=request.data.get('notes', ''),
-            expires_at=datetime.utcnow() + timedelta(minutes= 2)
+            expires_at=timezone.now() + timedelta(minutes=5)
         )
         order.save()
 
@@ -330,8 +334,8 @@ class UpdateOrderStatusView(APIView):
 
         order.status = new_status
         if new_status == 'paid' and not order.paid_at:
-            order.paid_at = datetime.utcnow()
-        order.updated_at = datetime.utcnow()
+            order.paid_at = timezone.now()
+        order.updated_at = timezone.now()
         order.save()
 
         return Response(order_to_dict(order), status=status.HTTP_200_OK)

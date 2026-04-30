@@ -5,13 +5,13 @@
 // ============================================================
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation'; // ← AÑADIDO useSearchParams
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { useCartStore } from '../lib/cartStore';
 import { c, styles, mergeStyles } from '../lib/styles';
 import { departamentos, departamentosYCiudades } from '../lib/colombiaData';
-import CheckoutForm from './CheckoutForm'; // Componente con el formulario de tarjeta
+import CheckoutForm from './CheckoutForm';
 
 // URL base del backend (desarrollo)
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -21,20 +21,20 @@ const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
 
 // ============================================================
-// 2. PERSONALIZACIÓN DE STRIPE ELEMENTS (colores Urban Store)
+// 2. PERSONALIZACIÓN DE STRIPE ELEMENTS
 // ============================================================
 
 const stripeAppearance = {
-  theme: 'stripe',                 // tema base
+  theme: 'stripe',
   variables: {
-    colorPrimary: '#B8860B',       // dorado principal (bordes, focus)
-    colorBackground: '#1a1a1a',    // fondo oscuro del campo
-    colorText: '#FFFFFF',          // texto blanco
-    colorDanger: '#ef4444',        // color para errores
+    colorPrimary: '#B8860B',
+    colorBackground: '#1a1a1a',
+    colorText: '#FFFFFF',
+    colorDanger: '#ef4444',
     fontFamily: 'system-ui, -apple-system, sans-serif',
-    borderRadius: '14px',          // bordes redondeados
+    borderRadius: '14px',
     spacingUnit: '4px',
-    colorTextSecondary: '#a0a0a0', // texto secundario (placeholders)
+    colorTextSecondary: '#a0a0a0',
   },
   rules: {
     '.Input': {
@@ -59,11 +59,9 @@ const stripeAppearance = {
 
 // ============================================================
 // 3. COMPONENTE DE PAGO (PASO 2)
-//    Recibe client_secret y orderId y envuelve CheckoutForm con Elements
 // ============================================================
 
 function PaymentStep({ clientSecret, orderId }) {
-  // Se pasa la apariencia personalizada junto con el clientSecret
   return (
     <Elements stripe={stripePromise} options={{ clientSecret, appearance: stripeAppearance }}>
       <CheckoutForm clientSecret={clientSecret} orderId={orderId} />
@@ -77,7 +75,9 @@ function PaymentStep({ clientSecret, orderId }) {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  // Obtenemos el carrito y la función para crear orden desde el store de Zustand
+  const searchParams = useSearchParams();                // ← PARA LEER resume_order
+  const resumeOrderId = searchParams.get('resume_order'); // ← ID de orden a reanudar
+
   const { items, total, createOrder } = useCartStore();
 
   // Estados generales
@@ -85,7 +85,7 @@ export default function CheckoutPage() {
   const [error, setError] = useState(null);
 
   // Estados para el flujo de pagos
-  const [step, setStep] = useState('address');   // 'address' o 'payment'
+  const [step, setStep] = useState('address');
   const [orderId, setOrderId] = useState(null);
   const [clientSecret, setClientSecret] = useState(null);
 
@@ -100,13 +100,12 @@ export default function CheckoutPage() {
     country: 'Colombia',
     notes: '',
   });
-
   const [phoneDigits, setPhoneDigits] = useState('');
   const [availableCities, setAvailableCities] = useState([]);
 
-  // --------------------------------------------------------
-  // 4.1 Verificar autenticación y precargar email del usuario
-  // --------------------------------------------------------
+  // ============================================================
+  // 4.1 Verificar autenticación y precargar email
+  // ============================================================
   useEffect(() => {
     const access = localStorage.getItem('access');
     if (!access) {
@@ -122,23 +121,82 @@ export default function CheckoutPage() {
     }
   }, [router]);
 
-  // --------------------------------------------------------
-  // 4.2 Actualizar lista de ciudades según el departamento seleccionado
-  // --------------------------------------------------------
+  // ============================================================
+  // 4.2 REANUDAR PAGO (cargar datos de orden pendiente)
+  // ============================================================
+  useEffect(() => {
+    if (!resumeOrderId) return;
+    const token = localStorage.getItem('access');
+    if (!token) return;
+
+    fetch(`${API_URL}/api/orders/${resumeOrderId}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((orderData) => {
+        if (orderData.status === 'pending') {
+          // Precargar formulario de dirección
+          setForm({
+            name: orderData.shipping_address.name || '',
+            email: orderData.shipping_address.email || '',
+            address: orderData.shipping_address.address || '',
+            city: orderData.shipping_address.city || '',
+            department: orderData.shipping_address.department || '',
+            country: orderData.shipping_address.country || 'Colombia',
+            notes: orderData.notes || '',
+            customCity: '',
+          });
+          // Precargar teléfono (sin el +57)
+          if (orderData.shipping_address.phone) {
+            const phoneRaw = orderData.shipping_address.phone.replace('+57 ', '');
+            setPhoneDigits(phoneRaw);
+          }
+          // Crear PaymentIntent y saltar al paso de pago
+          const createPayment = async () => {
+            try {
+              const paymentRes = await fetch(`${API_URL}/api/payments/create-payment-intent/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ order_id: orderData.id }),
+              });
+              if (!paymentRes.ok) throw new Error('Error al crear PaymentIntent');
+              const { client_secret } = await paymentRes.json();
+              setOrderId(orderData.id);
+              setClientSecret(client_secret);
+              setStep('payment');
+            } catch (err) {
+              setError('No se pudo iniciar el pago. Intenta de nuevo.');
+            }
+          };
+          createPayment();
+        } else {
+          alert('Esta orden ya no está pendiente. No se puede reanudar.');
+          router.push('/perfil');
+        }
+      })
+      .catch((err) => {
+        console.error('Error al reanudar orden:', err);
+        setError('No se pudo cargar la orden pendiente.');
+      });
+  }, [resumeOrderId]);
+
+  // ============================================================
+  // 4.3 Actualizar ciudades según departamento
+  // ============================================================
   useEffect(() => {
     if (form.department && departamentosYCiudades[form.department]) {
       setAvailableCities(departamentosYCiudades[form.department]);
       if (form.city !== '__OTHER__' && !departamentosYCiudades[form.department].includes(form.city)) {
-        setForm(prev => ({ ...prev, city: '', customCity: '' }));
+        setForm((prev) => ({ ...prev, city: '', customCity: '' }));
       }
     } else {
       setAvailableCities([]);
     }
   }, [form.department]);
 
-  // --------------------------------------------------------
-  // 4.3 Manejadores de cambios en el formulario
-  // --------------------------------------------------------
+  // ============================================================
+  // 4.4 Manejadores de cambios
+  // ============================================================
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
@@ -151,11 +209,11 @@ export default function CheckoutPage() {
     setPhoneDigits(limited);
   };
 
-  // --------------------------------------------------------
-  // 4.4 Envío del formulario de dirección: crea la orden y luego el PaymentIntent
-  // --------------------------------------------------------
+  // ============================================================
+  // 4.5 Envío del formulario de dirección (crea orden y PaymentIntent)
+  // ============================================================
   const handleAddressSubmit = async () => {
-    // Validaciones del formulario
+    // Validaciones originales (sin cambios)
     const ciudadValida = form.city === '__OTHER__' ? form.customCity.trim() !== '' : form.city !== '';
     if (!form.name || !form.email || !form.address || !ciudadValida || !form.department) {
       setError('Por favor completa todos los campos obligatorios.');
@@ -169,7 +227,6 @@ export default function CheckoutPage() {
       setError('Tu carrito está vacío.');
       return;
     }
-
     const length = phoneDigits.length;
     const isMobile = length === 10 && phoneDigits[0] === '3';
     const isFixed = length === 7 && phoneDigits[0] !== '3';
@@ -192,9 +249,8 @@ export default function CheckoutPage() {
       country: form.country,
     };
 
-    // 1. Crear la orden en el backend (usando la función del store)
+    // 1. Crear orden (usando el store)
     const order = await createOrder(shippingAddress, form.notes);
-
     if (!order || order.error) {
       setError(order?.error || 'No se pudo crear la orden. Intenta de nuevo.');
       setLoading(false);
@@ -208,29 +264,27 @@ export default function CheckoutPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ order_id: order.id }),
       });
-
       if (!paymentRes.ok) {
         const errData = await paymentRes.json();
         throw new Error(errData.error || 'Error al iniciar el pago');
       }
-
       const { client_secret } = await paymentRes.json();
       setOrderId(order.id);
       setClientSecret(client_secret);
-      setStep('payment'); // Cambiar al paso de pago
+      setStep('payment');
     } catch (err) {
       setError(err.message);
       setLoading(false);
     }
   };
 
-  // --------------------------------------------------------
-  // 4.5 Renderizado condicional: si estamos en paso de pago, mostrar Stripe
-  // --------------------------------------------------------
+  // ============================================================
+  // 4.6 Renderizado condicional (paso de pago)
+  // ============================================================
   if (step === 'payment' && clientSecret) {
     return (
       <div style={{ ...styles.page, display: 'block', padding: 0 }}>
@@ -242,9 +296,9 @@ export default function CheckoutPage() {
     );
   }
 
-  // --------------------------------------------------------
-  // 4.6 Paso 1: Formulario de dirección de envío (diseño Glassmorphism)
-  // --------------------------------------------------------
+  // ============================================================
+  // 4.7 Paso 1: Formulario de dirección (original)
+  // ============================================================
   return (
     <div style={{ ...styles.page, display: 'block', padding: 0 }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto', padding: 'clamp(20px,5vw,40px) clamp(16px,4vw,20px)' }}>
@@ -258,7 +312,7 @@ export default function CheckoutPage() {
           gridTemplateColumns: '1fr 380px',
           gap: 'clamp(20px,4vw,40px)',
         }}>
-          {/* COLUMNA IZQUIERDA: FORMULARIO */}
+          {/* COLUMNA IZQUIERDA: FORMULARIO (sin cambios) */}
           <div style={{
             backgroundColor: 'rgba(26,26,26,0.4)',
             backdropFilter: 'blur(12px)',
@@ -316,7 +370,7 @@ export default function CheckoutPage() {
                   {departamentos.map(depto => <option key={depto} value={depto}>{depto}</option>)}
                 </select>
               </div>
-              {/* Ciudad (dependiente del departamento) */}
+              {/* Ciudad */}
               <div>
                 <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Ciudad *</label>
                 <select name="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value, customCity: '' })} style={{
@@ -328,7 +382,6 @@ export default function CheckoutPage() {
                   <option value="__OTHER__">Otro municipio (especificar)</option>
                 </select>
               </div>
-              {/* Campo adicional cuando se selecciona "Otro municipio" */}
               {form.city === '__OTHER__' && (
                 <div>
                   <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Especifica el municipio *</label>
@@ -338,7 +391,7 @@ export default function CheckoutPage() {
                   }} />
                 </div>
               )}
-              {/* País (solo lectura) */}
+              {/* País */}
               <div>
                 <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>País</label>
                 <input name="country" value={form.country} readOnly style={{
@@ -346,7 +399,7 @@ export default function CheckoutPage() {
                   border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textWeak, fontSize: '15px'
                 }} />
               </div>
-              {/* Notas opcionales */}
+              {/* Notas */}
               <div>
                 <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Notas del pedido (opcional)</label>
                 <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Instrucciones especiales de entrega..." rows={3} style={{
@@ -368,7 +421,6 @@ export default function CheckoutPage() {
             top: '20px',
           }}>
             <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '700' }}>Tu pedido</h2>
-            {/* Lista de productos del carrito */}
             <div style={{ marginBottom: '20px' }}>
               {items.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${c.border}` }}>
@@ -380,14 +432,12 @@ export default function CheckoutPage() {
                 </div>
               ))}
             </div>
-            {/* Totales */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}><span>Subtotal</span><span>${total?.toLocaleString()}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}><span>Impuestos</span><span>$0</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}><span>Envío</span><span>Gratis</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px', color: c.primary, borderTop: `1px solid ${c.border}`, paddingTop: '12px', marginTop: '4px' }}><span>TOTAL</span><span>${total?.toLocaleString()}</span></div>
             </div>
-            {/* Mensaje de error y botones */}
             {error && <div style={{ ...styles.error, marginBottom: '16px' }}>{error}</div>}
             <button onClick={handleAddressSubmit} disabled={loading} style={styles.button(loading)}>
               {loading ? 'Procesando...' : 'Continuar al pago'}
@@ -398,7 +448,8 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
-      {/* Estilo responsivo para móviles */}
+
+      {/* Estilo responsivo */}
       <style jsx>{`
         @media (max-width: 768px) {
           .checkout-grid {
