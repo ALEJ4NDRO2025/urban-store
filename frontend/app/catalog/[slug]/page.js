@@ -1,50 +1,65 @@
-'use client'
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { c } from '../../lib/styles'
-import { useCartStore } from '../../lib/cartStore'
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { c } from '../../lib/styles';
+import { useCartStore } from '../../lib/cartStore';
+import { trackEvent } from '../../lib/analytics'; // ← importar analíticas
 
 export default function ProductPage() {
-  const { slug } = useParams()
-  const router = useRouter()
-  const addItem = useCartStore((state) => state.addItem)
+  const { slug } = useParams();
+  const router = useRouter();
+  const addItem = useCartStore((state) => state.addItem);
 
-  const [product, setProduct] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [selectedImage, setSelectedImage] = useState(0)
-  const [selectedSize, setSelectedSize] = useState(null)
-  const [selectedColor, setSelectedColor] = useState(null)
-  const [hovering, setHovering] = useState(null)
-  const [added, setAdded] = useState(false)
-  const [addingError, setAddingError] = useState(null)
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [selectedSize, setSelectedSize] = useState(null);
+  const [selectedColor, setSelectedColor] = useState(null);
+  const [hovering, setHovering] = useState(null);
+  const [added, setAdded] = useState(false);
+  const [addingError, setAddingError] = useState(null);
 
+  // ============================================================
+  // 1. Cargar producto y registrar evento de vista
+  // ============================================================
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products/${slug}/`)
-        if (!res.ok) throw new Error('Producto no encontrado')
-        const data = await res.json()
-        setProduct(data)
-        if (data.sizes?.length > 0) setSelectedSize(data.sizes[0])
-        if (data.colors?.length > 0) setSelectedColor(data.colors[0])
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchProduct()
-  }, [slug])
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products/${slug}/`);
+        if (!res.ok) throw new Error('Producto no encontrado');
+        const data = await res.json();
+        setProduct(data);
+        if (data.sizes?.length > 0) setSelectedSize(data.sizes[0]);
+        if (data.colors?.length > 0) setSelectedColor(data.colors[0]);
 
+        // 📊 Registrar evento de vista de producto (solo cuando se carga)
+        trackEvent('product_view', {
+          product_slug: data.slug,
+          product_name: data.name,
+          price: data.price?.toString(),
+        });
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProduct();
+  }, [slug]);
+
+  // ============================================================
+  // 2. Manejador de agregar al carrito (con evento)
+  // ============================================================
   const handleAddToCart = async () => {
-    const token = localStorage.getItem('access')
+    const token = localStorage.getItem('access');
     if (!token) {
-      router.push('/login')
-      return
+      router.push('/login');
+      return;
     }
-    if (!selectedSize || !selectedColor) return
-    setAddingError(null)
+    if (!selectedSize || !selectedColor) return;
+    setAddingError(null);
 
     await addItem({
       product_slug: product.slug,
@@ -54,30 +69,42 @@ export default function ProductPage() {
       selected_color: selectedColor,
       price_at_time: parseFloat(product.price),
       image: product.images?.[0] || '',
-    })
+    });
 
-    setAdded(true)
-    setTimeout(() => setAdded(false), 2000)
-  }
+    // 📊 Registrar evento de añadir al carrito
+    trackEvent('add_to_cart', {
+      product_slug: product.slug,
+      product_name: product.name,
+      price: product.price?.toString(),
+      metadata: {
+        quantity: 1,
+        size: selectedSize,
+        color: selectedColor,
+      },
+    });
+
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  };
 
   if (loading) return (
     <div style={{ background: 'radial-gradient(circle at 30% 20%, #1a1a1a, #0D0D0D 80%)', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
       <p style={{ color: c.textSub }}>Cargando producto...</p>
     </div>
-  )
+  );
 
   if (error) return (
     <div style={{ background: 'radial-gradient(circle at 30% 20%, #1a1a1a, #0D0D0D 80%)', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
       <p style={{ color: c.error }}>{error}</p>
     </div>
-  )
+  );
 
   return (
     <div style={{ background: 'radial-gradient(circle at 30% 20%, #1a1a1a, #0D0D0D 80%)', minHeight: '100vh', color: c.textMain, padding: 'clamp(20px, 5vw, 40px) 24px' }}>
       <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
         <div className="product-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(24px, 5vw, 48px)' }}>
 
-          {/* GALERÍA */}
+          {/* GALERÍA (sin cambios) */}
           <div>
             <div style={{
               width: '100%',
@@ -241,7 +268,6 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {/* Estilos responsivos */}
       <style jsx>{`
         @media (max-width: 768px) {
           .product-grid {
@@ -251,5 +277,5 @@ export default function ProductPage() {
         }
       `}</style>
     </div>
-  )
+  );
 }

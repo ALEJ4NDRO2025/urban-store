@@ -2,19 +2,72 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCartStore } from '../lib/cartStore';
+import { trackEvent } from '../lib/analytics';
 
-// Placeholder externo válido
 const PLACEHOLDER_IMG = 'https://placehold.co/600x600/1a1a1a/B8860B?text=Urban+Store';
 
 export default function ProductCard({ product }) {
+  const router = useRouter();
+  const addItem = useCartStore((state) => state.addItem);
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
 
   if (!product) return null;
 
   const inStock = product.stock > 0;
   const productLink = product.slug ? `/catalog/${product.slug}` : `/catalog/${product._id}`;
   const imageUrl = product.images?.[0] || PLACEHOLDER_IMG;
+
+  // ============================================================
+  // Obtener el primer color y la primera talla disponibles
+  // (esto es para la tarjeta; en la página de detalle se puede elegir)
+  // ============================================================
+  const defaultColor = product.colors?.[0] || 'negro';
+  const defaultSize = product.sizes?.[0] || 'M';
+
+  // ============================================================
+  // Manejador para agregar al carrito + evento analytics
+  // ============================================================
+  const handleAddToCart = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();   // evita que el Link navegue al detalle
+
+    const token = localStorage.getItem('access');
+    if (!token) {
+      router.push('/login?redirect=/catalog');
+      return;
+    }
+
+    setAdding(true);
+
+    const cartItem = {
+      product_slug: product.slug,
+      product_name: product.name,
+      quantity: 1,
+      selected_size: defaultSize,
+      selected_color: defaultColor,
+      price_at_time: product.price,
+    };
+
+    await addItem(cartItem);
+
+    // 📊 Registrar evento de analíticas (con los valores reales)
+    trackEvent('add_to_cart', {
+      product_slug: product.slug,
+      product_name: product.name,
+      price: product.price?.toString(),
+      metadata: {
+        quantity: 1,
+        size: defaultSize,
+        color: defaultColor,
+      },
+    });
+
+    setAdding(false);
+  };
 
   return (
     <Link href={productLink} style={{ textDecoration: 'none' }}>
@@ -36,6 +89,7 @@ export default function ProductCard({ product }) {
           flexDirection: 'column',
         }}
       >
+        {/* IMAGEN (igual que antes) */}
         <div style={{ position: 'relative', aspectRatio: '1/1', overflow: 'hidden', background: '#1a1a1a' }}>
           {imageLoading && (
             <div
@@ -95,6 +149,7 @@ export default function ProductCard({ product }) {
           </div>
         </div>
 
+        {/* INFORMACIÓN (igual que antes) */}
         <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div
             style={{
@@ -132,15 +187,36 @@ export default function ProductCard({ product }) {
           >
             ${product.price?.toLocaleString()}
           </div>
-        </div>
-      </div>
 
-      <style jsx>{`
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-      `}</style>
+          {/* BOTÓN AGREGAR */}
+          <button
+            onClick={handleAddToCart}
+            disabled={adding || !inStock}
+            style={{
+              marginTop: '16px',
+              width: '100%',
+              padding: '10px 0',
+              background: isHovered ? `linear-gradient(135deg, #B8860B, #D4A017)` : 'rgba(255,255,255,0.05)',
+              border: isHovered ? 'none' : `1px solid rgba(184, 134, 11, 0.3)`,
+              color: isHovered ? '#000' : '#fff',
+              fontWeight: '600',
+              borderRadius: '40px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            {adding ? 'Agregando...' : 'Agregar al carrito 🛒'}
+          </button>
+        </div>
+
+        {/* ANIMACIÓN SHIMMER */}
+        <style jsx>{`
+          @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+          }
+        `}</style>
+      </div>
     </Link>
   );
 }

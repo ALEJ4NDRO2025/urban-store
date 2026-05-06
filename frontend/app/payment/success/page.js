@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react'; // ← añadir useRef
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { c, styles } from '../../lib/styles';
+import { trackEvent } from '../../lib/analytics'; // ← función para analíticas
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -13,7 +14,7 @@ export default function PaymentSuccess() {
   const paymentIntentId = searchParams.get('payment_intent');
   const [status, setStatus] = useState('verifying');
   const [countdown, setCountdown] = useState(10);
-  const hasRedirected = useRef(false); // ← ref para evitar redirecciones múltiples
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
     if (!orderId || !paymentIntentId) {
@@ -29,6 +30,7 @@ export default function PaymentSuccess() {
       }
 
       try {
+        // 1. Confirmar el pago con Stripe
         const res = await fetch(`${API_URL}/api/payments/confirm-payment/`, {
           method: 'POST',
           headers: {
@@ -39,8 +41,31 @@ export default function PaymentSuccess() {
         });
 
         if (res.ok) {
+          // 2. Obtener los detalles completos de la orden (items, total, etc.)
+          const orderRes = await fetch(`${API_URL}/api/orders/${orderId}/`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const orderData = await orderRes.json();
+
+          // 3. 📊 REGISTRAR EVENTO DE COMPRA (por cada producto)
+          if (orderData.items && orderData.items.length) {
+            orderData.items.forEach(item => {
+              trackEvent('purchase', {
+                product_slug: item.product_slug,
+                product_name: item.product_name,
+                price: item.price_paid?.toString(),
+                metadata: {
+                  quantity: item.quantity,
+                  size: item.size || 'N/A',
+                  color: item.color || 'N/A',   // ← ahora sí se incluye el color
+                },
+              });
+            });
+          }
+
           setStatus('success');
-          // Redirigir después de 10 segundos (sin conflictos)
+
+          // 4. Redirigir automáticamente tras 10 segundos
           let seconds = 10;
           const interval = setInterval(() => {
             seconds -= 1;
@@ -80,7 +105,7 @@ export default function PaymentSuccess() {
       <button
         onClick={onClick}
         style={{
-          background: isPrimary 
+          background: isPrimary
             ? `linear-gradient(135deg, ${c.primary}, #D4A017)`
             : 'rgba(255,255,255,0.05)',
           border: isPrimary ? 'none' : `1px solid ${c.border}`,
@@ -118,7 +143,7 @@ export default function PaymentSuccess() {
     );
   };
 
-  // Renderizado (igual que original, solo cambió la lógica del useEffect)
+  // Renderizado de estados
   if (status === 'verifying') {
     return (
       <div style={styles.pageSection}>
