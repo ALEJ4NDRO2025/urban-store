@@ -17,16 +17,17 @@ export default function RootLayout({ children }) {
       <body style={{
         margin: 0,
         padding: 0,
-        // Gradiente radial sutil para dar profundidad (foco de luz)
         background: 'radial-gradient(circle at 30% 20%, #1a1a1a, #0D0D0D 80%)',
         color: '#FFFFFF',
         fontFamily: inter.style.fontFamily,
         minHeight: '100vh',
       }}>
-        {/* Providers encapsula AOS y Stripe (lógica de cliente) */}
         <Providers>
           <Navbar />
-          {children}
+          {/* Espaciado responsivo para que el contenido no quede pegado al navbar */}
+          <div style={{ paddingTop: 'clamp(80px, 12vw, 100px)' }}>
+            {children}
+          </div>
         </Providers>
       </body>
     </html>

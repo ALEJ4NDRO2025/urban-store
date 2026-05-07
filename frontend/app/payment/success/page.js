@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { c, styles } from '../../lib/styles';
-import { trackEvent } from '../../lib/analytics'; // ← función para analíticas
+import { trackEvent, trackError } from '../../lib/analytics';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -13,7 +13,7 @@ export default function PaymentSuccess() {
   const orderId = searchParams.get('order_id');
   const paymentIntentId = searchParams.get('payment_intent');
   const [status, setStatus] = useState('verifying');
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(5);
   const hasRedirected = useRef(false);
 
   useEffect(() => {
@@ -30,24 +30,31 @@ export default function PaymentSuccess() {
       }
 
       try {
-        // 1. Confirmar el pago con Stripe
+        // Confirmar pago con el backend
         const res = await fetch(`${API_URL}/api/payments/confirm-payment/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ order_id: orderId, payment_intent_id: paymentIntentId }),
         });
 
         if (res.ok) {
-          // 2. Obtener los detalles completos de la orden (items, total, etc.)
+          // Obtener detalles de la orden para registrar eventos
           const orderRes = await fetch(`${API_URL}/api/orders/${orderId}/`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           const orderData = await orderRes.json();
 
-          // 3. 📊 REGISTRAR EVENTO DE COMPRA (por cada producto)
+          // 📊 Registrar evento order_completed (compra finalizada)
+          trackEvent('order_completed', {
+            order_id: orderId,
+            total: orderData.total,
+            metadata: { item_count: orderData.items?.length || 0 },
+          });
+
+          // 📊 Registrar evento purchase por cada producto (si no lo hiciste antes)
           if (orderData.items && orderData.items.length) {
             orderData.items.forEach(item => {
               trackEvent('purchase', {
@@ -57,7 +64,7 @@ export default function PaymentSuccess() {
                 metadata: {
                   quantity: item.quantity,
                   size: item.size || 'N/A',
-                  color: item.color || 'N/A',   // ← ahora sí se incluye el color
+                  color: item.color || 'N/A',
                 },
               });
             });
@@ -65,8 +72,8 @@ export default function PaymentSuccess() {
 
           setStatus('success');
 
-          // 4. Redirigir automáticamente tras 10 segundos
-          let seconds = 10;
+          // Redirigir después de 5 segundos
+          let seconds = 5;
           const interval = setInterval(() => {
             seconds -= 1;
             setCountdown(seconds);
@@ -80,10 +87,13 @@ export default function PaymentSuccess() {
           }, 1000);
           return () => clearInterval(interval);
         } else {
+          // Error en confirmación de pago (backend)
+          trackError('payment_confirmation_error', `Status ${res.status}`, { order_id: orderId });
           setStatus('failed');
         }
       } catch (err) {
         console.error(err);
+        trackError('payment_confirmation_error', err.message, { order_id: orderId });
         setStatus('failed');
       }
     };
@@ -98,16 +108,14 @@ export default function PaymentSuccess() {
     }
   };
 
-  // Botón premium reutilizable (sin cambios)
+  // Botón premium (reutilizable, igual que antes)
   const PremiumButton = ({ onClick, children, variant = 'primary' }) => {
     const isPrimary = variant === 'primary';
     return (
       <button
         onClick={onClick}
         style={{
-          background: isPrimary
-            ? `linear-gradient(135deg, ${c.primary}, #D4A017)`
-            : 'rgba(255,255,255,0.05)',
+          background: isPrimary ? `linear-gradient(135deg, ${c.primary}, #D4A017)` : 'rgba(255,255,255,0.05)',
           border: isPrimary ? 'none' : `1px solid ${c.border}`,
           color: isPrimary ? '#000' : c.textMain,
           padding: '14px 32px',
@@ -117,7 +125,6 @@ export default function PaymentSuccess() {
           cursor: 'pointer',
           transition: 'all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1)',
           backdropFilter: 'blur(8px)',
-          letterSpacing: '0.5px',
         }}
         onMouseEnter={(e) => {
           if (isPrimary) {
@@ -143,7 +150,6 @@ export default function PaymentSuccess() {
     );
   };
 
-  // Renderizado de estados
   if (status === 'verifying') {
     return (
       <div style={styles.pageSection}>
@@ -219,6 +225,7 @@ export default function PaymentSuccess() {
     );
   }
 
+  // Error en la verificación del pago
   return (
     <div style={styles.pageSection}>
       <div style={{

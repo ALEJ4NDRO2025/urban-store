@@ -21,19 +21,14 @@ export default function ProductCard({ product }) {
   const productLink = product.slug ? `/catalog/${product.slug}` : `/catalog/${product._id}`;
   const imageUrl = product.images?.[0] || PLACEHOLDER_IMG;
 
-  // ============================================================
   // Obtener el primer color y la primera talla disponibles
-  // (esto es para la tarjeta; en la página de detalle se puede elegir)
-  // ============================================================
   const defaultColor = product.colors?.[0] || 'negro';
   const defaultSize = product.sizes?.[0] || 'M';
 
-  // ============================================================
   // Manejador para agregar al carrito + evento analytics
-  // ============================================================
   const handleAddToCart = async (e) => {
     e.preventDefault();
-    e.stopPropagation();   // evita que el Link navegue al detalle
+    e.stopPropagation(); // evita que el Link navegue al detalle
 
     const token = localStorage.getItem('access');
     if (!token) {
@@ -54,7 +49,7 @@ export default function ProductCard({ product }) {
 
     await addItem(cartItem);
 
-    // 📊 Registrar evento de analíticas (con los valores reales)
+    // Registrar evento de agregar al carrito
     trackEvent('add_to_cart', {
       product_slug: product.slug,
       product_name: product.name,
@@ -89,7 +84,7 @@ export default function ProductCard({ product }) {
           flexDirection: 'column',
         }}
       >
-        {/* IMAGEN (igual que antes) */}
+        {/* IMAGEN */}
         <div style={{ position: 'relative', aspectRatio: '1/1', overflow: 'hidden', background: '#1a1a1a' }}>
           {imageLoading && (
             <div
@@ -149,7 +144,7 @@ export default function ProductCard({ product }) {
           </div>
         </div>
 
-        {/* INFORMACIÓN (igual que antes) */}
+        {/* INFORMACIÓN */}
         <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div
             style={{

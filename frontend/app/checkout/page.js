@@ -12,19 +12,15 @@ import { useCartStore } from '../lib/cartStore';
 import { c, styles, mergeStyles } from '../lib/styles';
 import { departamentos, departamentosYCiudades } from '../lib/colombiaData';
 import CheckoutForm from './CheckoutForm';
-import { trackEvent } from '../lib/analytics'; // ← Importar función para analíticas
+import { trackEvent, trackError } from '../lib/analytics';
 
-// URL base del backend
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-// Clave publicable de Stripe (debe estar en .env.local)
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
 
 // ============================================================
 // 2. PERSONALIZACIÓN DE STRIPE ELEMENTS (diseño dorado)
 // ============================================================
-
 const stripeAppearance = {
   theme: 'stripe',
   variables: {
@@ -75,20 +71,16 @@ function PaymentStep({ clientSecret, orderId }) {
 export default function CheckoutPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const resumeOrderId = searchParams.get('resume_order'); // Reanudar pago
+  const resumeOrderId = searchParams.get('resume_order');
 
   const { items, total, createOrder } = useCartStore();
 
-  // Estados generales
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  // Estados flujo de pago
   const [step, setStep] = useState('address');
   const [orderId, setOrderId] = useState(null);
   const [clientSecret, setClientSecret] = useState(null);
 
-  // Formulario dirección
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -103,7 +95,7 @@ export default function CheckoutPage() {
   const [availableCities, setAvailableCities] = useState([]);
 
   // ============================================================
-  // 4.1 Verificar autenticación y precargar email del usuario
+  // 4.1 Verificar autenticación y precargar email
   // ============================================================
   useEffect(() => {
     const access = localStorage.getItem('access');
@@ -121,6 +113,22 @@ export default function CheckoutPage() {
   }, [router]);
 
   // ============================================================
+  // 📊 NUEVO: Evento begin_checkout al entrar en el checkout
+  // ============================================================
+  useEffect(() => {
+    const access = localStorage.getItem('access');
+    if (!access) return;
+    if (items.length === 0) return;
+
+    trackEvent('begin_checkout', {
+      metadata: {
+        item_count: items.length,
+        cart_total: total,
+      },
+    });
+  }, []); // solo al montar la página
+
+  // ============================================================
   // 4.2 REANUDAR PAGO (cargar orden pendiente y saltar al paso de pago)
   // ============================================================
   useEffect(() => {
@@ -134,7 +142,7 @@ export default function CheckoutPage() {
       .then((res) => res.json())
       .then((orderData) => {
         if (orderData.status === 'pending') {
-          // Precargar datos de dirección
+          // Precargar dirección
           setForm({
             name: orderData.shipping_address.name || '',
             email: orderData.shipping_address.email || '',
@@ -145,12 +153,10 @@ export default function CheckoutPage() {
             notes: orderData.notes || '',
             customCity: '',
           });
-          // Quitar prefijo +57 del teléfono si existe
           if (orderData.shipping_address.phone) {
             const phoneRaw = orderData.shipping_address.phone.replace('+57 ', '');
             setPhoneDigits(phoneRaw);
           }
-          // Crear nuevo PaymentIntent para la orden existente y saltar a pago
           const createPayment = async () => {
             try {
               const paymentRes = await fetch(`${API_URL}/api/payments/create-payment-intent/`, {
@@ -180,7 +186,7 @@ export default function CheckoutPage() {
   }, [resumeOrderId]);
 
   // ============================================================
-  // 4.3 Actualizar ciudades según departamento seleccionado
+  // 4.3 Actualizar ciudades según departamento
   // ============================================================
   useEffect(() => {
     if (form.department && departamentosYCiudades[form.department]) {
@@ -194,7 +200,7 @@ export default function CheckoutPage() {
   }, [form.department]);
 
   // ============================================================
-  // 4.4 Manejadores de cambios en el formulario
+  // 4.4 Manejadores de cambios
   // ============================================================
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -202,17 +208,15 @@ export default function CheckoutPage() {
   };
 
   const handlePhoneChange = (e) => {
-    const raw = e.target.value;
-    const digits = raw.replace(/\D/g, '');
-    const limited = digits.slice(0, 10);
-    setPhoneDigits(limited);
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setPhoneDigits(digits);
   };
 
   // ============================================================
-  // 4.5 ENVÍO DEL FORMULARIO DE DIRECCIÓN + EVENTO begin_checkout
+  // 4.5 ENVÍO DEL FORMULARIO DE DIRECCIÓN + EVENTOS ANALÍTICOS
   // ============================================================
   const handleAddressSubmit = async () => {
-    // Validaciones del formulario
+    // Validaciones
     const ciudadValida = form.city === '__OTHER__' ? form.customCity.trim() !== '' : form.city !== '';
     if (!form.name || !form.email || !form.address || !ciudadValida || !form.department) {
       setError('Por favor completa todos los campos obligatorios.');
@@ -227,10 +231,10 @@ export default function CheckoutPage() {
       return;
     }
     const length = phoneDigits.length;
-    const isMobile = length === 10 && phoneDigits[0] === '3';
-    const isFixed = length === 7 && phoneDigits[0] !== '3';
+    const isMobile = (length === 10 && phoneDigits[0] === '3');
+    const isFixed = (length === 7 && phoneDigits[0] !== '3');
     if (!isMobile && !isFixed) {
-      setError('Ingresa un número colombiano válido: 10 dígitos para móvil (comienza en 3) o 7 dígitos para fijo.');
+      setError('Ingresa un número colombiano válido: 10 dígitos para móvil (empieza en 3) o 7 dígitos para fijo.');
       return;
     }
 
@@ -248,18 +252,18 @@ export default function CheckoutPage() {
       country: form.country,
     };
 
-    // 📊 EVENTO: begin_checkout (inicio del proceso de pago)
-    // Se registra justo antes de crear la orden, con el total del carrito y cantidad de ítems.
-    trackEvent('begin_checkout', {
-      metadata: {
-        cart_total: total,
-        item_count: items.length,
-      },
+    // 📊 EVENTO: checkout_started (inicio del flujo de pago después de validar dirección)
+    trackEvent('checkout_started', {
+      metadata: { cart_total: total, item_count: items.length },
     });
 
-    // 1. Crear la orden (usando el store)
+    // 1. Crear orden
     const order = await createOrder(shippingAddress, form.notes);
     if (!order || order.error) {
+      trackError('checkout_error', order?.error || 'No se pudo crear la orden', {
+        address: shippingAddress,
+        cart_items: items.length,
+      });
       setError(order?.error || 'No se pudo crear la orden. Intenta de nuevo.');
       setLoading(false);
       return;
@@ -283,15 +287,16 @@ export default function CheckoutPage() {
       const { client_secret } = await paymentRes.json();
       setOrderId(order.id);
       setClientSecret(client_secret);
-      setStep('payment'); // Cambiar al paso de pago con Stripe
+      setStep('payment');
     } catch (err) {
+      trackError('payment_intent_error', err.message, { order_id: order.id });
       setError(err.message);
       setLoading(false);
     }
   };
 
   // ============================================================
-  // 4.6 Renderizado condicional: paso de pago (Stripe)
+  // 4.6 Renderizado condicional: paso de pago
   // ============================================================
   if (step === 'payment' && clientSecret) {
     return (
@@ -305,7 +310,7 @@ export default function CheckoutPage() {
   }
 
   // ============================================================
-  // 4.7 Paso 1: Formulario de dirección de envío (diseño Glassmorphism)
+  // 4.7 Paso 1: Formulario de dirección (diseño Glassmorphism)
   // ============================================================
   return (
     <div style={{ ...styles.page, display: 'block', padding: 0 }}>
@@ -320,7 +325,7 @@ export default function CheckoutPage() {
           gridTemplateColumns: '1fr 380px',
           gap: 'clamp(20px,4vw,40px)',
         }}>
-          {/* COLUMNA IZQUIERDA: FORMULARIO (glassmorphism) */}
+          {/* FORMULARIO */}
           <div style={{
             backgroundColor: 'rgba(26,26,26,0.4)',
             backdropFilter: 'blur(12px)',
@@ -347,7 +352,7 @@ export default function CheckoutPage() {
                 }} />
                 <p style={{ fontSize: '11px', color: c.textWeak, marginTop: '4px' }}>El correo asociado a tu cuenta no se puede modificar.</p>
               </div>
-              {/* Teléfono con prefijo +57 */}
+              {/* Teléfono */}
               <div>
                 <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Teléfono *</label>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -407,10 +412,10 @@ export default function CheckoutPage() {
                   border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textWeak, fontSize: '15px'
                 }} />
               </div>
-              {/* Notas opcionales */}
+              {/* Notas */}
               <div>
                 <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Notas del pedido (opcional)</label>
-                <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Instrucciones especiales de entrega..." rows={3} style={{
+                <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Instrucciones especiales..." rows={3} style={{
                   width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
                   border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', resize: 'vertical', outline: 'none'
                 }} />
@@ -418,7 +423,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* COLUMNA DERECHA: RESUMEN DEL PEDIDO */}
+          {/* RESUMEN DEL PEDIDO */}
           <div style={{
             backgroundColor: 'rgba(26,26,26,0.4)',
             backdropFilter: 'blur(12px)',
@@ -457,7 +462,6 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* Estilo responsivo */}
       <style jsx>{`
         @media (max-width: 768px) {
           .checkout-grid {

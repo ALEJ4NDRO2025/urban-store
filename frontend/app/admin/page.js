@@ -13,27 +13,44 @@ import { API_URL } from '../lib/api';
 // ============================================================
 // CONFIGURACIÓN
 // ============================================================
-const ITEMS_PER_PAGE = 10; // Paginación de la sección "Pedidos"
-// Paleta de colores profesional para analíticas
-const CHART_COLORS = {
-  line: '#3B82F6',      // Azul moderno (ventas)
-  bar: '#10B981',       // Verde esmeralda (productos)
-  pie: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'], // Eventos
-  grid: '#2D2D3D',      // Gris oscuro para cuadrícula
-  text: '#9CA3AF',      // Gris suave para etiquetas
-  kpi: {
-    sales: '#3B82F6',
-    abandonment: '#F59E0B',
-    addToCart: '#10B981',
-    checkout: '#8B5CF6',
-  }
+const ITEMS_PER_PAGE = 10;
+
+// Paleta profesional estilo Google Charts / Tableau (sobre fondo oscuro)
+const ANALYTICS_COLORS = {
+  // Colores base (no se usan directamente en gráficos pero sí en KPIs)
+  primary:    c.primary,       // Dorado Urban Store
+  secondary:  c.success,       // #10B981
+  accent:     c.accent,        // Plata
+  danger:     c.error,         // Rojo
+  neutral:    c.textSub,
+  surface:    c.card,
+  border:     c.border,
+  text:       c.textMain,
+  muted:      c.textWeak,
+
+  // Paleta para gráficos (líneas, barras, pastel)
+  timeline: {
+    product_view:    '#4285F4', // Azul Google
+    add_to_cart:     '#FF6D00', // Naranja intenso
+    begin_checkout:  '#F4B400', // Amarillo mostaza
+    purchase:        '#0F9D58', // Verde éxito
+    error:           '#DB4437', // Rojo alerta
+  },
+  pie: ['#4285F4', '#0F9D58', '#FF6D00', '#F4B400'],
+  bar: {
+    sales: '#4285F4',
+    views: '#0F9D58',
+  },
+  funnel: '#4285F4', // Color para el embudo de pago
 };
 
 export default function AdminPage() {
   const router = useRouter();
 
-  // --- Estados para la pestaña "Pedidos" ---
+  // --- Pestañas ---
   const [activeTab, setActiveTab] = useState('orders');
+
+  // --- Pedidos ---
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState(null);
@@ -44,12 +61,12 @@ export default function AdminPage() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // --- Estados para la pestaña "Analíticas" ---
+  // --- Analíticas ---
   const [stats, setStats] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
   // ============================================================
-  // CARGA DE DATOS
+  // EFECTOS INICIALES
   // ============================================================
   useEffect(() => {
     const token = localStorage.getItem('access');
@@ -87,7 +104,6 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (activeTab !== 'analytics') return;
-
     const token = localStorage.getItem('access');
     if (!token) return;
 
@@ -107,7 +123,7 @@ export default function AdminPage() {
   }, [activeTab]);
 
   // ============================================================
-  // FUNCIONES PARA PEDIDOS
+  // PEDIDOS: HANDLERS Y LÓGICA
   // ============================================================
   const handleStatusChange = async (orderId, newStatus) => {
     const token = localStorage.getItem('access');
@@ -199,20 +215,21 @@ export default function AdminPage() {
     }
   };
 
+  // Estilos reutilizables basados en el sistema de diseño
   const glassCard = {
-    background: 'rgba(26,26,26,0.6)',
+    background: 'rgba(26,26,26,0.5)',
     backdropFilter: 'blur(12px)',
     borderRadius: '16px',
     padding: '20px',
     border: `1px solid ${c.border}`,
-    transition: 'all 0.3s ease',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
   };
 
   const chipStyle = (isActive) => ({
     padding: '8px 20px',
     borderRadius: '40px',
     background: isActive ? c.primary : 'rgba(255,255,255,0.05)',
-    color: isActive ? '#000' : c.textMain,
+    color: isActive ? '#000' : c.textSub,
     border: isActive ? 'none' : `1px solid ${c.border}`,
     cursor: 'pointer',
     fontWeight: isActive ? 'bold' : 'normal',
@@ -221,11 +238,11 @@ export default function AdminPage() {
   });
 
   // ============================================================
-  // RENDER: PESTAÑA PEDIDOS
+  // PANEL DE PEDIDOS
   // ============================================================
   const renderOrdersPanel = () => (
     <>
-      {/* KPIs de pedidos */}
+      {/* KPIs pedidos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', marginBottom: '40px' }}>
         <div style={glassCard}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -239,7 +256,7 @@ export default function AdminPage() {
             <span style={{ fontSize: '14px', color: c.textSub }}>Ingresos Totales</span>
             <span style={{ fontSize: '24px' }}>💰</span>
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 'bold', color: c.primary }}>${totalRevenue.toLocaleString()}</div>
+          <div style={{ fontSize: '32px', fontWeight: 'bold', color: c.success }}>${totalRevenue.toLocaleString()}</div>
         </div>
         <div style={glassCard}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -302,7 +319,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Tabla de pedidos */}
+      {/* Tabla */}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
           <thead>
@@ -376,91 +393,263 @@ export default function AdminPage() {
   );
 
   // ============================================================
-  // RENDER: PESTAÑA ANALÍTICAS (datos reales, colores profesionales)
+  // PANEL DE ANALÍTICAS (TODAS LAS GRÁFICAS CON PALETA PROFESIONAL)
   // ============================================================
   const renderAnalyticsPanel = () => {
     if (loadingAnalytics) return <div style={{ textAlign: 'center', padding: '40px' }}>Cargando estadísticas...</div>;
     if (!stats) return <div style={{ textAlign: 'center', padding: '40px', color: c.error }}>Error al cargar estadísticas</div>;
 
     const totalSales = stats.total_sales || 0;
+    const totalRevenue = stats.total_revenue || 0;
+    const averageOrderValue = stats.average_order_value || 0;
     const abandonmentRate = stats.abandonment_rate || 0;
     const addToCart = stats.event_counts?.add_to_cart || 0;
     const beginCheckout = stats.event_counts?.begin_checkout || 0;
-    const salesData = stats.sales_by_day || [];
+    const conversionRates = stats.conversion_rates || {};
     const topProducts = stats.top_products || [];
-    const eventData = stats.event_counts ? Object.entries(stats.event_counts)
-      .filter(([_, v]) => v > 0)
-      .map(([key, val]) => ({
-        name: key === 'product_view' ? 'Vistas' : key === 'add_to_cart' ? 'Agregados' : key === 'begin_checkout' ? 'Checkout' : 'Compras',
-        value: val
-      })) : [];
+    const topViewed = stats.top_viewed_products || [];
+    const salesByDay = stats.sales_by_day || [];
+    const eventsTimeline = stats.events_timeline || [];
+    const productPerformance = stats.product_performance || [];
+    const errorsTimeline = stats.errors_timeline || [];
+    const sessionStats = stats.session_stats || null;
 
     return (
       <>
-        {/* KPIs analíticos */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', marginBottom: '40px' }}>
+        {/* KPIs analíticos (8 tarjetas) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '40px' }}>
           <div style={glassCard}>
-            <div style={{ fontSize: '14px', color: '#9CA3AF', marginBottom: '8px' }}>Total Ventas</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: CHART_COLORS.kpi.sales }}>{totalSales}</div>
+            <div style={{ fontSize: '14px', color: c.textSub, marginBottom: '8px' }}>Total Ventas</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: c.primary }}>{totalSales}</div>
           </div>
           <div style={glassCard}>
-            <div style={{ fontSize: '14px', color: '#9CA3AF', marginBottom: '8px' }}>Tasa de Abandono</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: CHART_COLORS.kpi.abandonment }}>{abandonmentRate}%</div>
+            <div style={{ fontSize: '14px', color: c.textSub, marginBottom: '8px' }}>Ingresos Totales</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: c.success }}>${totalRevenue.toLocaleString()}</div>
           </div>
           <div style={glassCard}>
-            <div style={{ fontSize: '14px', color: '#9CA3AF', marginBottom: '8px' }}>Añadidos al Carrito</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: CHART_COLORS.kpi.addToCart }}>{addToCart}</div>
+            <div style={{ fontSize: '14px', color: c.textSub, marginBottom: '8px' }}>Valor Prom. Pedido</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: c.accent }}>${averageOrderValue.toLocaleString()}</div>
           </div>
           <div style={glassCard}>
-            <div style={{ fontSize: '14px', color: '#9CA3AF', marginBottom: '8px' }}>Inicios de Checkout</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: CHART_COLORS.kpi.checkout }}>{beginCheckout}</div>
+            <div style={{ fontSize: '14px', color: c.textSub, marginBottom: '8px' }}>Tasa de Abandono</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: c.warning }}>{abandonmentRate}%</div>
           </div>
+          <div style={glassCard}>
+            <div style={{ fontSize: '14px', color: c.textSub, marginBottom: '8px' }}>Añadidos al Carrito</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: c.primary }}>{addToCart}</div>
+          </div>
+          <div style={glassCard}>
+            <div style={{ fontSize: '14px', color: c.textSub, marginBottom: '8px' }}>Inicios de Checkout</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: c.primaryHover }}>{beginCheckout}</div>
+          </div>
+          <div style={glassCard}>
+            <div style={{ fontSize: '14px', color: c.textSub, marginBottom: '8px' }}>Visitante → Carrito</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: c.success }}>{conversionRates.visit_to_cart || 0}%</div>
+          </div>
+          <div style={glassCard}>
+            <div style={{ fontSize: '14px', color: c.textSub, marginBottom: '8px' }}>Carrito → Checkout</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: c.warning }}>{conversionRates.cart_to_checkout || 0}%</div>
+          </div>
+        </div>
+
+        {/* Sesiones (nuevo) */}
+        {sessionStats && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', marginBottom: '30px' }}>
+            <div style={glassCard}>
+              <div style={{ fontSize: '14px', color: c.textSub }}>Sesiones únicas</div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: ANALYTICS_COLORS.bar.sales }}>{sessionStats.unique_sessions}</div>
+            </div>
+            <div style={glassCard}>
+              <div style={{ fontSize: '14px', color: c.textSub }}>Prom. eventos/sesión</div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: ANALYTICS_COLORS.timeline.add_to_cart }}>{sessionStats.avg_events_per_session}</div>
+            </div>
+            <div style={glassCard}>
+              <div style={{ fontSize: '14px', color: c.textSub }}>Sesiones con compra</div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: ANALYTICS_COLORS.timeline.purchase }}>{sessionStats.sessions_with_purchase}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Embudo de pago */}
+        {stats.checkout_started_count !== undefined && (
+          <div style={{ ...glassCard, marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '20px', marginBottom: '20px', color: c.textMain }}>⏳ Embudo de pago</h2>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart
+                data={[
+                  { etapa: 'Checkout iniciado', usuarios: stats.checkout_started_count ?? 0 },
+                  { etapa: 'Datos pago ingresados', usuarios: stats.payment_info_entered_count ?? 0 },
+                  { etapa: 'Compra completada', usuarios: stats.order_completed_count ?? 0 }
+                ]}
+                layout="vertical"
+              >
+                <CartesianGrid stroke={c.border} strokeDasharray="3 3" />
+                <XAxis type="number" stroke={c.textSub} />
+                <YAxis dataKey="etapa" type="category" width={150} stroke={c.textSub} />
+                <Tooltip contentStyle={{ backgroundColor: c.card, border: `1px solid ${c.border}` }} />
+                <Bar dataKey="usuarios" fill={ANALYTICS_COLORS.funnel} />
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, color: c.textSub }}>
+              <span>Checkout → Pago: <strong style={{ color: ANALYTICS_COLORS.timeline.add_to_cart }}>{stats.conversion_checkout_to_payment || 0}%</strong></span>
+              <span>Pago → Compra: <strong style={{ color: ANALYTICS_COLORS.timeline.purchase }}>{stats.conversion_payment_to_order || 0}%</strong></span>
+            </div>
+          </div>
+        )}
+
+        {/* Evolución de eventos (líneas múltiples) */}
+        <div style={{ ...glassCard, marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600', color: c.textMain }}>📊 Evolución de eventos</h2>
+          {eventsTimeline.length > 0 ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={eventsTimeline}>
+                <CartesianGrid stroke={c.border} strokeDasharray="3 3" />
+                <XAxis dataKey="date" stroke={c.textSub} />
+                <YAxis stroke={c.textSub} />
+                <Tooltip contentStyle={{ backgroundColor: c.card, border: `1px solid ${c.border}`, borderRadius: '8px' }} />
+                <Legend />
+                <Line type="monotone" dataKey="product_view" stroke={ANALYTICS_COLORS.timeline.product_view} name="Vistas" strokeWidth={2} />
+                <Line type="monotone" dataKey="add_to_cart" stroke={ANALYTICS_COLORS.timeline.add_to_cart} name="Agregados" strokeWidth={2} />
+                <Line type="monotone" dataKey="begin_checkout" stroke={ANALYTICS_COLORS.timeline.begin_checkout} name="Checkout" strokeWidth={2} />
+                <Line type="monotone" dataKey="purchase" stroke={ANALYTICS_COLORS.timeline.purchase} name="Compras" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p style={{ textAlign: 'center', color: c.textSub }}>No hay datos de eventos en los últimos 7 días.</p>
+          )}
         </div>
 
         {/* Ventas por día */}
         <div style={{ ...glassCard, marginBottom: '40px' }}>
-          <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600' }}>📈 Ventas por día</h2>
-          {salesData.length > 0 ? (
+          <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600', color: c.textMain }}>📈 Ventas por día</h2>
+          {salesByDay.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={salesData}>
-                <CartesianGrid stroke={CHART_COLORS.grid} strokeDasharray="3 3" />
-                <XAxis dataKey="date" stroke={CHART_COLORS.text} />
-                <YAxis stroke={CHART_COLORS.text} />
-                <Tooltip contentStyle={{ backgroundColor: '#1E1E1E', border: `1px solid ${c.border}`, borderRadius: '8px' }} />
-                <Line type="monotone" dataKey="count" stroke={CHART_COLORS.line} strokeWidth={2} name="Ventas" />
+              <LineChart data={salesByDay}>
+                <CartesianGrid stroke={c.border} strokeDasharray="3 3" />
+                <XAxis dataKey="date" stroke={c.textSub} />
+                <YAxis stroke={c.textSub} />
+                <Tooltip contentStyle={{ backgroundColor: c.card, border: `1px solid ${c.border}`, borderRadius: '8px' }} />
+                <Line type="monotone" dataKey="count" stroke={ANALYTICS_COLORS.timeline.product_view} strokeWidth={2} name="Ventas" />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <p style={{ textAlign: 'center', color: '#9CA3AF' }}>No hay ventas registradas en los últimos 7 días.</p>
+            <p style={{ textAlign: 'center', color: c.textSub }}>No hay ventas registradas en los últimos 7 días.</p>
           )}
         </div>
 
-        {/* Top productos */}
-        <div style={{ ...glassCard, marginBottom: '40px' }}>
-          <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600' }}>🏆 Top 5 productos más vendidos</h2>
-          {topProducts.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={topProducts} layout="vertical">
-                <CartesianGrid stroke={CHART_COLORS.grid} strokeDasharray="3 3" />
-                <XAxis type="number" stroke={CHART_COLORS.text} />
-                <YAxis dataKey="slug" type="category" width={150} stroke={CHART_COLORS.text} />
-                <Tooltip contentStyle={{ backgroundColor: '#1E1E1E', border: `1px solid ${c.border}`, borderRadius: '8px' }} />
-                <Bar dataKey="count" fill={CHART_COLORS.bar} name="Unidades vendidas" />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p style={{ textAlign: 'center', color: '#9CA3AF' }}>No hay productos vendidos en los últimos 7 días.</p>
-          )}
-        </div>
-
-        {/* Distribución de eventos */}
-        {eventData.length > 0 && (
+        {/* Top productos (vendidos vs vistos) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '40px' }}>
           <div style={glassCard}>
-            <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600' }}>📊 Distribución de eventos</h2>
+            <h2 style={{ fontSize: '18px', marginBottom: '20px', fontWeight: '600', color: c.textMain }}>🏆 Más vendidos</h2>
+            {topProducts.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topProducts} layout="vertical">
+                  <CartesianGrid stroke={c.border} strokeDasharray="3 3" />
+                  <XAxis type="number" stroke={c.textSub} />
+                  <YAxis dataKey="slug" type="category" width={150} stroke={c.textSub} />
+                  <Tooltip contentStyle={{ backgroundColor: c.card, border: `1px solid ${c.border}`, borderRadius: '8px' }} />
+                  <Bar dataKey="count" fill={ANALYTICS_COLORS.bar.sales} name="Unidades" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p style={{ textAlign: 'center', color: c.textSub }}>Sin datos</p>
+            )}
+          </div>
+          <div style={glassCard}>
+            <h2 style={{ fontSize: '18px', marginBottom: '20px', fontWeight: '600', color: c.textMain }}>👁️ Más vistos</h2>
+            {topViewed.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topViewed} layout="vertical">
+                  <CartesianGrid stroke={c.border} strokeDasharray="3 3" />
+                  <XAxis type="number" stroke={c.textSub} />
+                  <YAxis dataKey="slug" type="category" width={150} stroke={c.textSub} />
+                  <Tooltip contentStyle={{ backgroundColor: c.card, border: `1px solid ${c.border}`, borderRadius: '8px' }} />
+                  <Bar dataKey="count" fill={ANALYTICS_COLORS.bar.views} name="Visitas" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p style={{ textAlign: 'center', color: c.textSub }}>Sin datos</p>
+            )}
+          </div>
+        </div>
+
+        {/* Tabla de rendimiento por producto (nuevo) */}
+        {productPerformance.length > 0 && (
+          <div style={{ ...glassCard, marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600', color: c.textMain }}>
+              📋 Rendimiento por producto
+            </h2>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${c.border}` }}>
+                    <th style={{ padding: '12px', textAlign: 'left', color: c.textSub }}>Producto</th>
+                    <th style={{ padding: '12px', textAlign: 'center', color: c.textSub }}>Vistas</th>
+                    <th style={{ padding: '12px', textAlign: 'center', color: c.textSub }}>Carritos</th>
+                    <th style={{ padding: '12px', textAlign: 'center', color: c.textSub }}>Compras</th>
+                    <th style={{ padding: '12px', textAlign: 'center', color: c.textSub }}>Conversión</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productPerformance.map((prod, idx) => (
+                    <tr key={prod.slug} style={{ borderBottom: `1px solid ${c.border}`, animation: `fadeInUp 0.3s ease-out ${idx * 0.05}s both` }}>
+                      <td style={{ padding: '12px', fontWeight: '500', color: c.primary }}>{prod.name || prod.slug}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', color: c.textMain }}>{prod.views}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', color: c.textMain }}>{prod.add_to_cart}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', color: c.textMain }}>{prod.purchases}</td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        <span style={{
+                          backgroundColor: prod.conversion_rate >= 5 ? c.success : c.textWeak,
+                          color: '#fff',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {prod.conversion_rate}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Errores por día (nuevo) */}
+        {errorsTimeline.length > 0 && (
+          <div style={{ ...glassCard, marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600', color: c.textMain }}>
+              ⚠️ Errores por día
+            </h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={errorsTimeline}>
+                <CartesianGrid stroke={c.border} strokeDasharray="3 3" />
+                <XAxis dataKey="date" stroke={c.textSub} />
+                <YAxis stroke={c.textSub} />
+                <Tooltip contentStyle={{ backgroundColor: c.card, border: `1px solid ${c.border}` }} />
+                <Legend />
+                <Line type="monotone" dataKey="payment_error" stroke={ANALYTICS_COLORS.timeline.error} name="Error de pago" strokeWidth={2} />
+                <Line type="monotone" dataKey="address_error" stroke={ANALYTICS_COLORS.timeline.begin_checkout} name="Error de dirección" strokeWidth={2} />
+                <Line type="monotone" dataKey="checkout_error" stroke={ANALYTICS_COLORS.timeline.add_to_cart} name="Error checkout" strokeWidth={2} />
+                <Line type="monotone" dataKey="payment_confirmation_error" stroke={ANALYTICS_COLORS.timeline.product_view} name="Error confirmación" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Distribución de eventos (pastel) */}
+        {stats.event_counts && Object.values(stats.event_counts).some(v => v > 0) && (
+          <div style={glassCard}>
+            <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600', color: c.textMain }}>📊 Distribución de eventos</h2>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={eventData}
+                  data={Object.entries(stats.event_counts).map(([key, val]) => ({
+                    name: key === 'product_view' ? 'Vistas' : key === 'add_to_cart' ? 'Agregados' : key === 'begin_checkout' ? 'Checkout' : 'Compras',
+                    value: val
+                  })).filter(item => item.value > 0)}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -469,11 +658,11 @@ export default function AdminPage() {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {eventData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={CHART_COLORS.pie[index % CHART_COLORS.pie.length]} />
+                  {Object.entries(stats.event_counts).map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={ANALYTICS_COLORS.pie[index % ANALYTICS_COLORS.pie.length]} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#1E1E1E', border: `1px solid ${c.border}`, borderRadius: '8px' }} />
+                <Tooltip contentStyle={{ backgroundColor: c.card, border: `1px solid ${c.border}`, borderRadius: '8px' }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -521,7 +710,7 @@ export default function AdminPage() {
     <div style={{ backgroundColor: c.bg, minHeight: '100vh', color: c.textMain }}>
       <Toaster position="top-right" toastOptions={{ style: { background: c.card, color: c.textMain, border: `1px solid ${c.border}` } }} />
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: 'clamp(20px, 5vw, 40px) clamp(16px, 4vw, 20px)' }}>
-        {/* Header y pestañas */}
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '15px' }}>
           <h1 style={{ fontSize: 'clamp(24px, 6vw, 28px)', fontWeight: '800', animation: 'fadeInDown 0.6s ease-out' }}>
             Panel de <span style={{ color: c.primary }}>Administración</span>
@@ -529,6 +718,7 @@ export default function AdminPage() {
           <button onClick={() => router.push('/')} style={{ padding: '8px 16px', backgroundColor: 'transparent', color: c.textSub, border: `1px solid ${c.border}`, borderRadius: '6px', cursor: 'pointer' }}>← Volver a la tienda</button>
         </div>
 
+        {/* Tabs */}
         <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', borderBottom: `1px solid ${c.border}` }}>
           <button onClick={() => setActiveTab('orders')} style={{
             padding: '12px 0',

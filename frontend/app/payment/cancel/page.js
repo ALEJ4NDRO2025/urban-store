@@ -1,15 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { c, styles } from '../../lib/styles';
+import { trackEvent } from '../../lib/analytics';
 
 export default function PaymentCancel() {
+  const searchParams = useSearchParams();
   const router = useRouter();
+  const orderId = searchParams.get('order_id');
   const [countdown, setCountdown] = useState(10);
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
+    if (orderId) {
+      // 📊 Registrar que el usuario canceló el pago
+      trackEvent('payment_cancelled', { order_id: orderId });
+    }
+
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -22,57 +30,13 @@ export default function PaymentCancel() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [router]);
+  }, [orderId, router]);
 
   const handleManualRedirect = () => {
     if (!redirecting) {
       setRedirecting(true);
       router.push('/checkout');
     }
-  };
-
-  const PremiumButton = ({ onClick, children, variant = 'primary' }) => {
-    const isPrimary = variant === 'primary';
-    return (
-      <button
-        onClick={onClick}
-        style={{
-          background: isPrimary 
-            ? `linear-gradient(135deg, ${c.primary}, #D4A017)`
-            : 'rgba(255,255,255,0.05)',
-          border: isPrimary ? 'none' : `1px solid ${c.border}`,
-          color: isPrimary ? '#000' : c.textMain,
-          padding: '14px 32px',
-          borderRadius: '40px',
-          fontSize: '16px',
-          fontWeight: '600',
-          cursor: 'pointer',
-          transition: 'all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1)',
-          backdropFilter: 'blur(8px)',
-          letterSpacing: '0.5px',
-        }}
-        onMouseEnter={(e) => {
-          if (isPrimary) {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = `0 8px 20px rgba(184,134,11,0.4)`;
-          } else {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-            e.currentTarget.style.borderColor = c.primary;
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (isPrimary) {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'none';
-          } else {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-            e.currentTarget.style.borderColor = c.border;
-          }
-        }}
-      >
-        {children}
-      </button>
-    );
   };
 
   return (
@@ -108,13 +72,10 @@ export default function PaymentCancel() {
         }}>
           <span style={{ color: c.primary, fontWeight: 'bold' }}>Volviendo en {countdown} segundos</span>
         </div>
-        <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <PremiumButton onClick={handleManualRedirect} variant="primary">
+        <div>
+          <button onClick={handleManualRedirect} style={styles.buttonPrimary}>
             Volver al checkout
-          </PremiumButton>
-          <PremiumButton onClick={() => router.push('/')} variant="secondary">
-            Ir al inicio
-          </PremiumButton>
+          </button>
         </div>
       </div>
       <style jsx>{`
