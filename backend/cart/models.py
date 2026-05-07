@@ -2,16 +2,16 @@ from mongoengine import Document, EmbeddedDocument, ListField, StringField, IntF
 from datetime import datetime
 
 class CartItem(EmbeddedDocument):
-    product_slug  = StringField(required=True)
-    product_name  = StringField()
-    quantity      = IntField(required=True, min_value=1)
+    product_slug   = StringField(required=True)
+    product_name   = StringField()
+    quantity       = IntField(required=True, min_value=1)
     selected_size  = StringField()
     selected_color = StringField()
     price_at_time  = FloatField(required=True)
     image          = StringField()
 
 class Cart(Document):
-    user_id    = StringField(required=True, unique=True)  # email del usuario
+    user_id    = StringField(required=True, unique=True)
     items      = ListField(EmbeddedDocumentField(CartItem), default=[])
     total      = FloatField(default=0)
     item_count = IntField(default=0)
@@ -21,6 +21,7 @@ class Cart(Document):
     meta = {'collection': 'carts'}
 
     def calculate_totals(self):
-        self.total      = sum(i.price_at_time * i.quantity for i in self.items)
+        # Manejar price_at_time None (lo convertimos a 0)
+        self.total = sum((i.price_at_time if i.price_at_time is not None else 0) * i.quantity for i in self.items)
         self.item_count = sum(i.quantity for i in self.items)
         self.updated_at = datetime.utcnow()
