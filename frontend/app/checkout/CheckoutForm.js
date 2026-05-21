@@ -14,9 +14,6 @@ export default function CheckoutForm({ clientSecret, orderId }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [paymentInfoCompleted, setPaymentInfoCompleted] = useState(false);
 
-  // ============================================================
-  // Detectar cuando el usuario completa los datos de pago (por primera vez)
-  // ============================================================
   useEffect(() => {
     if (!elements || paymentInfoCompleted) return;
     const paymentElement = elements.getElement('payment');
@@ -25,7 +22,6 @@ export default function CheckoutForm({ clientSecret, orderId }) {
     const onChange = (event) => {
       if (event.complete && !event.empty && !paymentInfoCompleted) {
         setPaymentInfoCompleted(true);
-        // 📊 EVENTO: Usuario ingresó correctamente los datos de tarjeta
         trackEvent('payment_info_entered', { order_id: orderId });
       }
     };
@@ -33,9 +29,6 @@ export default function CheckoutForm({ clientSecret, orderId }) {
     return () => paymentElement.off('change', onChange);
   }, [elements, orderId, paymentInfoCompleted]);
 
-  // ============================================================
-  // Manejar el envío del pago a Stripe
-  // ============================================================
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!stripe || !elements) return;
@@ -52,14 +45,11 @@ export default function CheckoutForm({ clientSecret, orderId }) {
       });
 
       if (error) {
-        // 📊 EVENTO: Error de pago (tarjeta rechazada, CVV inválido, etc.)
         trackError('payment_error', error.message, { order_id: orderId });
         setErrorMessage(error.message);
         setIsLoading(false);
       }
-      // Si no hay error, Stripe redirige automáticamente a return_url
     } catch (err) {
-      // 📊 EVENTO: Error inesperado en la comunicación con Stripe
       trackError('payment_error', err.message, { order_id: orderId });
       setErrorMessage('Error inesperado. Intenta de nuevo.');
       setIsLoading(false);
@@ -67,7 +57,6 @@ export default function CheckoutForm({ clientSecret, orderId }) {
   };
 
   const handleCancel = () => {
-    // 📊 EVENTO: Usuario canceló el pago voluntariamente
     trackEvent('payment_cancelled', { order_id: orderId });
     router.push(`/payment/cancel?order_id=${orderId}`);
   };
@@ -100,7 +89,6 @@ export default function CheckoutForm({ clientSecret, orderId }) {
       >
         {isLoading ? 'Procesando pago...' : 'Pagar ahora'}
       </button>
-
       <button
         type="button"
         onClick={handleCancel}

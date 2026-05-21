@@ -1,9 +1,5 @@
 'use client';
 
-// ============================================================
-// 1. IMPORTS Y CONFIGURACIÓN INICIAL
-// ============================================================
-
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
@@ -18,11 +14,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
 
-// ============================================================
-// 2. PERSONALIZACIÓN DE STRIPE ELEMENTS (diseño dorado)
-// ============================================================
 const stripeAppearance = {
-  theme: 'stripe',
+  theme: 'night',
   variables: {
     colorPrimary: '#B8860B',
     colorBackground: '#1a1a1a',
@@ -54,9 +47,6 @@ const stripeAppearance = {
   },
 };
 
-// ============================================================
-// 3. COMPONENTE DE PAGO (PASO 2) – Stripe Elements
-// ============================================================
 function PaymentStep({ clientSecret, orderId }) {
   return (
     <Elements stripe={stripePromise} options={{ clientSecret, appearance: stripeAppearance }}>
@@ -65,15 +55,12 @@ function PaymentStep({ clientSecret, orderId }) {
   );
 }
 
-// ============================================================
-// 4. COMPONENTE PRINCIPAL DEL CHECKOUT
-// ============================================================
 export default function CheckoutPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const resumeOrderId = searchParams.get('resume_order');
 
-  const { items, total, createOrder } = useCartStore();
+  const { items, createOrder } = useCartStore();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -94,9 +81,11 @@ export default function CheckoutPage() {
   const [phoneDigits, setPhoneDigits] = useState('');
   const [availableCities, setAvailableCities] = useState([]);
 
-  // ============================================================
-  // 4.1 Verificar autenticación y precargar email
-  // ============================================================
+  const realTotal = items.reduce((sum, item) => {
+    const price = parseFloat(item.price_at_time) || 0;
+    return sum + price * item.quantity;
+  }, 0);
+
   useEffect(() => {
     const access = localStorage.getItem('access');
     if (!access) {
@@ -110,27 +99,14 @@ export default function CheckoutPage() {
         setForm((prev) => ({ ...prev, email: user.email || '' }));
       } catch (_) {}
     }
-  }, [router]);
+    if (items.length > 0) {
+      trackEvent('begin_checkout', {
+        metadata: { item_count: items.length, cart_total: realTotal },
+      });
+    }
+  }, []);
 
-  // ============================================================
-  // 📊 NUEVO: Evento begin_checkout al entrar en el checkout
-  // ============================================================
-  useEffect(() => {
-    const access = localStorage.getItem('access');
-    if (!access) return;
-    if (items.length === 0) return;
-
-    trackEvent('begin_checkout', {
-      metadata: {
-        item_count: items.length,
-        cart_total: total,
-      },
-    });
-  }, []); // solo al montar la página
-
-  // ============================================================
-  // 4.2 REANUDAR PAGO (cargar orden pendiente y saltar al paso de pago)
-  // ============================================================
+  // Reanudación de pago (sin cambios)
   useEffect(() => {
     if (!resumeOrderId) return;
     const token = localStorage.getItem('access');
@@ -142,7 +118,6 @@ export default function CheckoutPage() {
       .then((res) => res.json())
       .then((orderData) => {
         if (orderData.status === 'pending') {
-          // Precargar dirección
           setForm({
             name: orderData.shipping_address.name || '',
             email: orderData.shipping_address.email || '',
@@ -185,9 +160,6 @@ export default function CheckoutPage() {
       });
   }, [resumeOrderId]);
 
-  // ============================================================
-  // 4.3 Actualizar ciudades según departamento
-  // ============================================================
   useEffect(() => {
     if (form.department && departamentosYCiudades[form.department]) {
       setAvailableCities(departamentosYCiudades[form.department]);
@@ -199,9 +171,6 @@ export default function CheckoutPage() {
     }
   }, [form.department]);
 
-  // ============================================================
-  // 4.4 Manejadores de cambios
-  // ============================================================
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
@@ -212,11 +181,7 @@ export default function CheckoutPage() {
     setPhoneDigits(digits);
   };
 
-  // ============================================================
-  // 4.5 ENVÍO DEL FORMULARIO DE DIRECCIÓN + EVENTOS ANALÍTICOS
-  // ============================================================
   const handleAddressSubmit = async () => {
-    // Validaciones
     const ciudadValida = form.city === '__OTHER__' ? form.customCity.trim() !== '' : form.city !== '';
     if (!form.name || !form.email || !form.address || !ciudadValida || !form.department) {
       setError('Por favor completa todos los campos obligatorios.');
@@ -252,12 +217,10 @@ export default function CheckoutPage() {
       country: form.country,
     };
 
-    // 📊 EVENTO: checkout_started (inicio del flujo de pago después de validar dirección)
     trackEvent('checkout_started', {
-      metadata: { cart_total: total, item_count: items.length },
+      metadata: { cart_total: realTotal, item_count: items.length },
     });
 
-    // 1. Crear orden
     const order = await createOrder(shippingAddress, form.notes);
     if (!order || order.error) {
       trackError('checkout_error', order?.error || 'No se pudo crear la orden', {
@@ -269,7 +232,6 @@ export default function CheckoutPage() {
       return;
     }
 
-    // 2. Obtener client_secret de Stripe
     try {
       const token = localStorage.getItem('access');
       const paymentRes = await fetch(`${API_URL}/api/payments/create-payment-intent/`, {
@@ -295,9 +257,6 @@ export default function CheckoutPage() {
     }
   };
 
-  // ============================================================
-  // 4.6 Renderizado condicional: paso de pago
-  // ============================================================
   if (step === 'payment' && clientSecret) {
     return (
       <div style={{ ...styles.page, display: 'block', padding: 0 }}>
@@ -309,87 +268,115 @@ export default function CheckoutPage() {
     );
   }
 
-  // ============================================================
-  // 4.7 Paso 1: Formulario de dirección (diseño Glassmorphism)
-  // ============================================================
+  // Estilos del tema oscuro
+  const glassCard = {
+    background: 'rgba(26, 26, 26, 0.5)',
+    backdropFilter: 'blur(16px)',
+    borderRadius: '28px',
+    border: '1px solid rgba(184, 134, 11, 0.15)',
+    padding: 'clamp(24px, 4vw, 40px)',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+  };
+
+  const inputStyle = (isError = false) => ({
+    width: '100%',
+    padding: '14px 16px',
+    backgroundColor: 'rgba(38, 38, 38, 0.6)',
+    backdropFilter: 'blur(8px)',
+    border: `1px solid ${isError ? c.error : c.border}`,
+    borderRadius: '14px',
+    color: c.textMain,
+    fontSize: '15px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+    transition: 'border-color 0.3s, box-shadow 0.3s',
+  });
+
+  const labelStyle = {
+    display: 'block',
+    color: c.textSub,
+    fontSize: '13px',
+    marginBottom: '8px',
+    fontWeight: '500',
+  };
+
   return (
-    <div style={{ ...styles.page, display: 'block', padding: 0 }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: 'clamp(20px,5vw,40px) clamp(16px,4vw,20px)' }}>
-        <h1 style={{ ...styles.heading2, fontSize: 'clamp(28px,6vw,36px)' }}>Checkout</h1>
-        <p style={{ ...styles.body, marginBottom: 'clamp(30px,6vw,40px)' }}>
-          Completa tus datos para finalizar el pedido
-        </p>
+    <div style={{
+      background: 'radial-gradient(circle at 30% 20%, #1a1a1a, #0D0D0D 80%)',
+      minHeight: '100vh',
+      color: c.textMain,
+      padding: 'clamp(20px, 5vw, 48px) 24px',
+    }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '40px' }}>
+          <h1 style={{
+            fontSize: 'clamp(32px, 7vw, 48px)',
+            fontWeight: '900',
+            marginBottom: '12px',
+            background: `linear-gradient(135deg, #FFFFFF 0%, ${c.primary} 40%, #FFD700 100%)`,
+            backgroundSize: '200% auto',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            animation: 'gradientShift 6s ease infinite',
+            letterSpacing: '1px',
+          }}>
+            Checkout
+          </h1>
+          <p style={{ ...styles.body, fontSize: '16px', color: c.textSub }}>
+            Completa tus datos para finalizar el pedido
+          </p>
+        </div>
 
         <div className="checkout-grid" style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 380px',
-          gap: 'clamp(20px,4vw,40px)',
+          gridTemplateColumns: '1fr 400px',
+          gap: 'clamp(24px, 5vw, 48px)',
+          alignItems: 'start',
         }}>
-          {/* FORMULARIO */}
-          <div style={{
-            backgroundColor: 'rgba(26,26,26,0.4)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(184,134,11,0.15)',
-            borderRadius: '24px',
-            padding: 'clamp(20px,4vw,32px)',
-          }}>
-            <h2 style={{ fontSize: '20px', marginBottom: '24px', color: c.textMain, fontWeight: '700' }}>Datos de envío</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              {/* Nombre */}
+          {/* Formulario */}
+          <div style={glassCard}>
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: '800',
+              marginBottom: '32px',
+              color: c.textMain,
+            }}>
+              Datos de envío
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div>
-                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Nombre completo *</label>
-                <input name="name" value={form.name} onChange={handleChange} placeholder="Wilson Mejía" style={{
-                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
-                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', boxSizing: 'border-box', outline: 'none'
-                }} />
+                <label style={labelStyle}>Nombre completo *</label>
+                <input name="name" value={form.name} onChange={handleChange} placeholder="Wilson Mejía" style={inputStyle()} />
               </div>
-              {/* Email (solo lectura) */}
               <div>
-                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Email *</label>
-                <input name="email" type="email" value={form.email} readOnly style={{
-                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(51,51,51,0.5)', backdropFilter: 'blur(8px)',
-                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textWeak, fontSize: '15px', cursor: 'not-allowed'
-                }} />
+                <label style={labelStyle}>Email *</label>
+                <input name="email" type="email" value={form.email} readOnly style={{ ...inputStyle(), backgroundColor: 'rgba(51,51,51,0.5)', cursor: 'not-allowed', color: c.textWeak }} />
                 <p style={{ fontSize: '11px', color: c.textWeak, marginTop: '4px' }}>El correo asociado a tu cuenta no se puede modificar.</p>
               </div>
-              {/* Teléfono */}
               <div>
-                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Teléfono *</label>
+                <label style={labelStyle}>Teléfono *</label>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <span style={{ position: 'absolute', left: '16px', color: c.textSub, pointerEvents: 'none', zIndex: 1 }}>+57</span>
-                  <input type="tel" inputMode="numeric" value={phoneDigits} onChange={handlePhoneChange} placeholder="300 123 4567" style={{
-                    width: '100%', padding: '14px 16px 14px 52px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
-                    border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', boxSizing: 'border-box', outline: 'none'
-                  }} />
+                  <input type="tel" inputMode="numeric" value={phoneDigits} onChange={handlePhoneChange} placeholder="300 123 4567" style={{ ...inputStyle(), paddingLeft: '52px' }} />
                 </div>
                 <p style={{ fontSize: '11px', color: c.textWeak, marginTop: '4px' }}>Móvil: 10 dígitos comenzando en 3 · Fijo: 7 dígitos</p>
               </div>
-              {/* Dirección */}
               <div>
-                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Dirección *</label>
-                <input name="address" value={form.address} onChange={handleChange} placeholder="Calle 123 # 45-67, Apto 8" style={{
-                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
-                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', boxSizing: 'border-box', outline: 'none'
-                }} />
+                <label style={labelStyle}>Dirección *</label>
+                <input name="address" value={form.address} onChange={handleChange} placeholder="Calle 123 # 45-67, Apto 8" style={inputStyle()} />
               </div>
-              {/* Departamento */}
               <div>
-                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Departamento *</label>
-                <select name="department" value={form.department} onChange={handleChange} style={{
-                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
-                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', outline: 'none'
-                }}>
+                <label style={labelStyle}>Departamento *</label>
+                <select name="department" value={form.department} onChange={handleChange} style={{ ...inputStyle(), cursor: 'pointer' }}>
                   <option value="">Selecciona un departamento</option>
                   {departamentos.map(depto => <option key={depto} value={depto}>{depto}</option>)}
                 </select>
               </div>
-              {/* Ciudad */}
               <div>
-                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Ciudad *</label>
-                <select name="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value, customCity: '' })} style={{
-                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
-                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', outline: 'none'
-                }} disabled={!form.department}>
+                <label style={labelStyle}>Ciudad *</label>
+                <select name="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value, customCity: '' })} style={{ ...inputStyle(), cursor: 'pointer' }} disabled={!form.department}>
                   <option value="">Selecciona una ciudad</option>
                   {availableCities.map(ciudad => <option key={ciudad} value={ciudad}>{ciudad}</option>)}
                   <option value="__OTHER__">Otro municipio (especificar)</option>
@@ -397,61 +384,104 @@ export default function CheckoutPage() {
               </div>
               {form.city === '__OTHER__' && (
                 <div>
-                  <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Especifica el municipio *</label>
-                  <input name="customCity" value={form.customCity} onChange={handleChange} placeholder="Ej: San Vicente de Chucurí" style={{
-                    width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
-                    border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', outline: 'none'
-                  }} />
+                  <label style={labelStyle}>Especifica el municipio *</label>
+                  <input name="customCity" value={form.customCity} onChange={handleChange} placeholder="Ej: San Vicente de Chucurí" style={inputStyle()} />
                 </div>
               )}
-              {/* País */}
               <div>
-                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>País</label>
-                <input name="country" value={form.country} readOnly style={{
-                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(51,51,51,0.5)', cursor: 'not-allowed',
-                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textWeak, fontSize: '15px'
-                }} />
+                <label style={labelStyle}>País</label>
+                <input name="country" value={form.country} readOnly style={{ ...inputStyle(), backgroundColor: 'rgba(51,51,51,0.5)', cursor: 'not-allowed', color: c.textWeak }} />
               </div>
-              {/* Notas */}
               <div>
-                <label style={{ display: 'block', color: c.textSub, fontSize: '13px', marginBottom: '6px' }}>Notas del pedido (opcional)</label>
-                <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Instrucciones especiales..." rows={3} style={{
-                  width: '100%', padding: '14px 16px', backgroundColor: 'rgba(38,38,38,0.6)', backdropFilter: 'blur(8px)',
-                  border: `1px solid ${c.border}`, borderRadius: '14px', color: c.textMain, fontSize: '15px', resize: 'vertical', outline: 'none'
-                }} />
+                <label style={labelStyle}>Notas del pedido (opcional)</label>
+                <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Instrucciones especiales..." rows={3} style={{ ...inputStyle(), resize: 'vertical', minHeight: '100px' }} />
               </div>
             </div>
           </div>
 
-          {/* RESUMEN DEL PEDIDO */}
+          {/* Resumen del pedido */}
           <div style={{
-            backgroundColor: 'rgba(26,26,26,0.4)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(184,134,11,0.2)',
-            borderRadius: '24px',
-            padding: 'clamp(20px,4vw,28px)',
+            ...glassCard,
             position: 'sticky',
-            top: '20px',
+            top: 'calc(clamp(80px, 12vw, 100px) + 20px)',
+            border: '1px solid rgba(184, 134, 11, 0.25)',
+            boxShadow: '0 12px 28px rgba(0,0,0,0.4)',
           }}>
-            <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '700' }}>Tu pedido</h2>
-            <div style={{ marginBottom: '20px' }}>
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: '800',
+              marginBottom: '24px',
+              color: c.textMain,
+            }}>
+              Tu pedido
+            </h2>
+
+            <div style={{ marginBottom: '24px', maxHeight: '400px', overflowY: 'auto' }}>
               {items.map((item, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${c.border}` }}>
+                <div key={idx} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 0',
+                  borderBottom: `1px solid ${c.border}`,
+                  gap: '12px',
+                }}>
                   <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontSize: '14px', fontWeight: '500' }}>{item.product_name}</p>
-                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: c.textSub }}>{item.selected_size} · {item.selected_color} · x{item.quantity}</p>
+                    <p style={{ fontSize: '15px', fontWeight: '600', color: c.textMain, margin: '0 0 4px' }}>{item.product_name}</p>
+                    <p style={{ fontSize: '13px', color: c.textSub, margin: 0 }}>
+                      {item.selected_size} · {item.selected_color} · <strong>x{item.quantity}</strong>
+                    </p>
                   </div>
-                  <p style={{ margin: 0, color: c.primary, fontWeight: 'bold', fontSize: '14px' }}>${(item.price_at_time * item.quantity).toLocaleString()}</p>
+                  <p style={{
+                    fontSize: '15px',
+                    fontWeight: '700',
+                    color: c.primary,
+                    margin: 0,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    ${(Number(item.price_at_time) * item.quantity).toLocaleString()}
+                  </p>
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}><span>Subtotal</span><span>${total?.toLocaleString()}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}><span>Impuestos</span><span>$0</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}><span>Envío</span><span>Gratis</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px', color: c.primary, borderTop: `1px solid ${c.border}`, paddingTop: '12px', marginTop: '4px' }}><span>TOTAL</span><span>${total?.toLocaleString()}</span></div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}>
+                <span>Subtotal</span>
+                <span>${realTotal.toLocaleString()}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}>
+                <span>Impuestos</span>
+                <span>$0</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '14px' }}>
+                <span>Envío</span>
+                <span style={{ color: c.success }}>Gratis</span>
+              </div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontWeight: 'bold',
+                fontSize: '18px',
+                marginTop: '8px',
+                borderTop: `1px solid ${c.border}`,
+                paddingTop: '16px',
+              }}>
+                <span style={{ color: c.textMain }}>TOTAL</span>
+                <span style={{
+                  background: `linear-gradient(135deg, ${c.primary} 0%, #D4A017 50%, #FFD700 100%)`,
+                  backgroundSize: '200% auto',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}>
+                  ${realTotal.toLocaleString()}
+                </span>
+              </div>
             </div>
+
             {error && <div style={{ ...styles.error, marginBottom: '16px' }}>{error}</div>}
+
             <button onClick={handleAddressSubmit} disabled={loading} style={styles.button(loading)}>
               {loading ? 'Procesando...' : 'Continuar al pago'}
             </button>
@@ -467,6 +497,11 @@ export default function CheckoutPage() {
           .checkout-grid {
             grid-template-columns: 1fr !important;
           }
+        }
+        @keyframes gradientShift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
         }
       `}</style>
     </div>

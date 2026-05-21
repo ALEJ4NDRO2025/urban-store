@@ -10,45 +10,55 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, total, fetchCart, removeItem, updateItemQuantity } = useCartStore();
+  const { items, removeItem, updateItemQuantity } = useCartStore();
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasItems, setHasItems] = useState(false);
   const [removingId, setRemovingId] = useState(null);
 
+  // ─── Calcular total de forma robusta ───────────────
+  const realTotal = items.reduce((sum, item) => {
+    const price = parseFloat(item.price_at_time) || 0;
+    return sum + price * item.quantity;
+  }, 0);
+
   // ============================================================
-  // 1. Cargar carrito y registrar view_cart
+  // 1. Montaje e hidratación
   // ============================================================
   useEffect(() => {
+    setMounted(true);
     const access = localStorage.getItem('access');
     if (!access) {
       router.push('/login');
       return;
     }
-    fetchCart().finally(() => setLoading(false));
+    // El carrito ya está disponible desde localStorage vía persist
+    setLoading(false);
   }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     const has = items.length > 0;
     setHasItems(has);
     if (has && !loading) {
       trackEvent('view_cart', {
-        metadata: { item_count: items.length, cart_total: total },
+        metadata: { item_count: items.length, cart_total: realTotal },
       });
     }
-  }, [items, loading]);
+  }, [items, loading, mounted]);
 
   // ============================================================
   // 2. Detectar abandono por cierre de pestaña
   // ============================================================
   useEffect(() => {
-    if (!hasItems) return;
+    if (!mounted || !hasItems) return;
     const sendAbandonEvent = () => {
       const sessionId = localStorage.getItem('session_id') || crypto.randomUUID();
       if (!localStorage.getItem('session_id')) localStorage.setItem('session_id', sessionId);
       const payload = {
         event_type: 'cart_abandon',
         session_id: sessionId,
-        metadata: { item_count: items.length, cart_total: total, reason: 'page_closed' },
+        metadata: { item_count: items.length, cart_total: realTotal, reason: 'page_closed' },
       };
       fetch(`${API_URL}/api/analytics/track/`, {
         method: 'POST',
@@ -60,7 +70,7 @@ export default function CartPage() {
     };
     window.addEventListener('pagehide', sendAbandonEvent);
     return () => window.removeEventListener('pagehide', sendAbandonEvent);
-  }, [hasItems, items.length, total]);
+  }, [hasItems, items.length, realTotal, mounted]);
 
   // ============================================================
   // 3. Eliminar producto
@@ -74,7 +84,7 @@ export default function CartPage() {
         await trackEvent('cart_abandon', {
           metadata: {
             item_count: 1,
-            cart_total: total - item.price_at_time * item.quantity,
+            cart_total: realTotal - item.price_at_time * item.quantity,
             reason: 'user_removed_all_items',
           },
         });
@@ -97,7 +107,7 @@ export default function CartPage() {
   };
 
   // ============================================================
-  // ESTILOS PREMIUM (basados en el Home)
+  // ESTILOS PREMIUM
   // ============================================================
   const glassCard = {
     background: 'rgba(26, 26, 26, 0.5)',
@@ -164,9 +174,9 @@ export default function CartPage() {
   };
 
   // ============================================================
-  // ESTADOS DE CARGA
+  // RENDER
   // ============================================================
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div style={{
         background: 'radial-gradient(circle at 30% 20%, #1a1a1a, #0D0D0D 80%)',
@@ -186,7 +196,7 @@ export default function CartPage() {
             animation: 'spin 0.8s linear infinite',
             margin: '0 auto 20px',
           }} />
-          <p style={{ color: c.textSub, fontSize: '16px' }}>Cargando carrito...</p>
+          <p style={{ color: c.textSub, fontSize: '16px' }}>Preparando carrito…</p>
         </div>
         <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
@@ -235,9 +245,6 @@ export default function CartPage() {
     );
   }
 
-  // ============================================================
-  // RENDER PRINCIPAL
-  // ============================================================
   return (
     <div style={{
       background: 'radial-gradient(circle at 30% 20%, #1a1a1a, #0D0D0D 80%)',
@@ -246,7 +253,6 @@ export default function CartPage() {
       padding: '40px 20px 80px',
     }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        {/* Título */}
         <div style={{ marginBottom: '40px' }}>
           <h1 style={{
             fontSize: 'clamp(28px, 7vw, 44px)',
@@ -262,7 +268,6 @@ export default function CartPage() {
           </p>
         </div>
 
-        {/* Lista de items */}
         <div style={{ marginBottom: '32px' }}>
           {items.map((item, idx) => (
             <div
@@ -289,7 +294,6 @@ export default function CartPage() {
                 e.currentTarget.style.borderColor = 'rgba(184, 134, 11, 0.15)';
               }}
             >
-              {/* Imagen */}
               <div style={{
                 width: '120px',
                 height: '120px',
@@ -319,7 +323,6 @@ export default function CartPage() {
                 />
               </div>
 
-              {/* Info */}
               <div>
                 <a
                   href={`/catalog/${item.product_slug}`}
@@ -343,13 +346,11 @@ export default function CartPage() {
                   <span>Color: <strong style={{ color: c.textMain, textTransform: 'capitalize' }}>{item.selected_color}</strong></span>
                 </div>
                 <p style={{ color: c.textWeak, fontSize: '13px', marginBottom: '0' }}>
-                  Precio unitario: ${item.price_at_time?.toLocaleString()}
+                  Precio unitario: ${Number(item.price_at_time).toLocaleString()}
                 </p>
               </div>
 
-              {/* Cantidad + Precio total + Eliminar */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                {/* Controles de cantidad */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <button
                     onClick={() => handleUpdateQuantity(item, item.quantity - 1)}
@@ -390,7 +391,6 @@ export default function CartPage() {
                   </button>
                 </div>
 
-                {/* Precio total del item */}
                 <p style={{
                   color: c.primary,
                   fontWeight: 'bold',
@@ -398,10 +398,9 @@ export default function CartPage() {
                   margin: 0,
                   ...goldText,
                 }}>
-                  ${(item.price_at_time * item.quantity)?.toLocaleString()}
+                  ${(Number(item.price_at_time) * item.quantity).toLocaleString()}
                 </p>
 
-                {/* Botón eliminar */}
                 <button
                   onClick={() => handleRemoveItem(item)}
                   style={{
@@ -425,7 +424,6 @@ export default function CartPage() {
           ))}
         </div>
 
-        {/* Resumen del pedido */}
         <div style={{
           ...glassCard,
           marginBottom: '32px',
@@ -445,7 +443,7 @@ export default function CartPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '15px' }}>
               <span>Subtotal</span>
-              <span>${total?.toLocaleString()}</span>
+              <span>${realTotal.toLocaleString()}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: c.textSub, fontSize: '15px' }}>
               <span>Impuestos</span>
@@ -465,12 +463,11 @@ export default function CartPage() {
               paddingTop: '16px',
             }}>
               <span style={{ color: c.textMain }}>TOTAL</span>
-              <span style={goldText}>${total?.toLocaleString()}</span>
+              <span style={goldText}>${realTotal.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
-        {/* Botones de acción */}
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
           <button
             onClick={() => router.push('/catalog')}
@@ -504,7 +501,6 @@ export default function CartPage() {
           </button>
         </div>
 
-        {/* Footer sutil */}
         <div style={{
           marginTop: '60px',
           textAlign: 'center',
@@ -527,7 +523,6 @@ export default function CartPage() {
         </div>
       </div>
 
-      {/* Animaciones globales */}
       <style jsx global>{`
         @keyframes gradientShift {
           0% { background-position: 0% 50%; }
