@@ -2,20 +2,19 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
-from django.core.mail import send_mail          # ← Para enviar correos
+from django.core.mail import send_mail
 from .models import Order, OrderItem, ShippingAddress
 from cart.models import Cart
 import jwt
 from datetime import datetime, timedelta
 from django.utils import timezone
-from datetime import timedelta
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FUNCIONES AUXILIARES
 # ═══════════════════════════════════════════════════════════════════════════
 
 def get_user_id(request):
-    """Extrae el email (user_id) del token JWT enviado en el header Authorization."""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         return None
@@ -25,8 +24,8 @@ def get_user_id(request):
     except:
         return None
 
+
 def is_admin(request):
-    """Devuelve True si el token JWT pertenece a un administrador."""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         return False
@@ -36,8 +35,8 @@ def is_admin(request):
     except:
         return False
 
+
 def order_to_dict(order):
-    """Convierte un objeto Order de MongoEngine en un diccionario JSON serializable."""
     return {
         'id': str(order.id),
         'order_number': order.order_number,
@@ -81,19 +80,48 @@ class CreateOrderView(APIView):
     permission_classes = []
 
     def post(self, request):
-        """POST /api/orders/ — crea una orden desde el carrito y envía correo de confirmación."""
         user_id = get_user_id(request)
         if not user_id:
             return Response({'error': 'Token inválido'}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Verificar que el carrito existe y tiene items
-        try:
-            cart = Cart.objects.get(user_id=user_id)
-        except Cart.DoesNotExist:
-            return Response({'error': 'Carrito vacío'}, status=status.HTTP_400_BAD_REQUEST)
+        # ─── 1. Intentar obtener items desde el body del frontend ───
+        items_data = request.data.get('items', [])
+        
+        # Si el frontend envió items, los usamos directamente
+        if items_data:
+            order_items = [
+                OrderItem(
+                    product_slug=item.get('product_slug'),
+                    product_name=item.get('product_name', ''),
+                    quantity=item.get('quantity', 1),
+                    size=item.get('selected_size', ''),
+                    color=item.get('selected_color', ''),
+                    price_paid=item.get('price_paid', 0),
+                    subtotal=item.get('price_paid', 0) * item.get('quantity', 1),
+                )
+                for item in items_data
+            ]
+        else:
+            # ─── 2. Si no, usar el carrito de la base de datos (compatibilidad) ───
+            try:
+                cart = Cart.objects.get(user_id=user_id)
+            except Cart.DoesNotExist:
+                return Response({'error': 'El carrito está vacío'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not cart.items:
-            return Response({'error': 'El carrito está vacío'}, status=status.HTTP_400_BAD_REQUEST)
+            if not cart.items:
+                return Response({'error': 'El carrito está vacío'}, status=status.HTTP_400_BAD_REQUEST)
+
+            order_items = [
+                OrderItem(
+                    product_slug=i.product_slug,
+                    product_name=i.product_name,
+                    quantity=i.quantity,
+                    size=i.selected_size,
+                    color=i.selected_color,
+                    price_paid=i.price_at_time,
+                    subtotal=i.price_at_time * i.quantity,
+                ) for i in cart.items
+            ]
 
         addr = request.data.get('shipping_address')
         if not addr:
@@ -103,17 +131,9 @@ class CreateOrderView(APIView):
         order = Order(
             user_id=user_id,
             order_number=Order.generate_order_number(),
-            items=[OrderItem(
-                product_slug=i.product_slug,
-                product_name=i.product_name,
-                quantity=i.quantity,
-                size=i.selected_size,
-                color=i.selected_color,
-                price_paid=i.price_at_time,
-                subtotal=i.price_at_time * i.quantity,
-            ) for i in cart.items],
-            subtotal=cart.total,
-            total=cart.total,
+            items=order_items,
+            subtotal=sum(item.subtotal for item in order_items),
+            total=sum(item.subtotal for item in order_items),
             shipping_address=ShippingAddress(
                 email=addr.get('email', user_id),
                 name=addr.get('name', ''),
@@ -128,15 +148,13 @@ class CreateOrderView(APIView):
         )
         order.save()
 
-        # Vaciar el carrito
-        cart.items = []
-        cart.calculate_totals()
-        cart.save()
+        # Vaciar el carrito en BD solo si se usó
+        if not items_data:
+            cart.items = []
+            cart.calculate_totals()
+            cart.save()
 
-        # ═══════════════════════════════════════════════════════════════════
-        # ENVIAR CORREO DE CONFIRMACIÓN AL CLIENTE
-        # ═══════════════════════════════════════════════════════════════════
-        # Construir filas de la tabla de productos para el HTML
+        # ─── ENVIAR CORREO DE CONFIRMACIÓN ───
         items_html = ""
         for item in order.items:
             items_html += f"""
@@ -153,7 +171,6 @@ class CreateOrderView(APIView):
             </tr>
             """
 
-        # Mensaje HTML con diseño Urban Store
         html_message = f"""
         <!DOCTYPE html>
         <html>
@@ -229,7 +246,6 @@ class CreateOrderView(APIView):
         </html>
         """
 
-        # Mensaje en texto plano (respaldo)
         items_text = "\n".join([f"- {i.product_name} x{i.quantity}: ${i.subtotal:,.0f}" for i in order.items])
         text_message = f"""
 ¡Gracias por tu compra, {order.shipping_address.name}!
@@ -251,7 +267,6 @@ Tel: {order.shipping_address.phone}
 Gracias por confiar en Urban Store.
 """
 
-        # Enviar el correo
         send_mail(
             subject=f'Confirmación de pedido #{order.order_number} - Urban Store',
             message=text_message,
@@ -269,7 +284,6 @@ class OrderDetailView(APIView):
     permission_classes = []
 
     def get(self, request, order_id):
-        """GET /api/orders/<order_id>/ — detalle de una orden."""
         user_id = get_user_id(request)
         if not user_id:
             return Response({'error': 'Token inválido'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -292,7 +306,6 @@ class UserOrdersView(APIView):
     permission_classes = []
 
     def get(self, request):
-        """GET /api/orders/my-orders/ — pedidos del usuario autenticado."""
         user_id = get_user_id(request)
         if not user_id:
             return Response({'error': 'Token inválido'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -306,7 +319,6 @@ class AllOrdersView(APIView):
     permission_classes = []
 
     def get(self, request):
-        """GET /api/orders/all/ — todos los pedidos (solo admin)."""
         if not is_admin(request):
             return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -319,7 +331,6 @@ class UpdateOrderStatusView(APIView):
     permission_classes = []
 
     def patch(self, request, order_id):
-        """PATCH /api/orders/<order_id>/status/ — actualizar estado (solo admin)."""
         if not is_admin(request):
             return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
 

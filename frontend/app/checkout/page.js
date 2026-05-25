@@ -106,7 +106,6 @@ export default function CheckoutPage() {
     }
   }, []);
 
-  // Reanudación de pago (sin cambios)
   useEffect(() => {
     if (!resumeOrderId) return;
     const token = localStorage.getItem('access');
@@ -192,7 +191,7 @@ export default function CheckoutPage() {
       return;
     }
     if (items.length === 0) {
-      setError('Tu carrito está vacío.');
+      setError('Tu carrito está vacío. Agrega productos antes de continuar.');
       return;
     }
     const length = phoneDigits.length;
@@ -221,11 +220,21 @@ export default function CheckoutPage() {
       metadata: { cart_total: realTotal, item_count: items.length },
     });
 
-    const order = await createOrder(shippingAddress, form.notes);
+    // Obtener los items más actualizados directamente del store
+    const cartItems = useCartStore.getState().items;
+    console.log('Items antes de crear orden:', cartItems);
+
+    if (!cartItems || cartItems.length === 0) {
+      setError('Tu carrito está vacío. Agrega productos antes de continuar.');
+      setLoading(false);
+      return;
+    }
+
+    const order = await createOrder(shippingAddress, form.notes, cartItems);
     if (!order || order.error) {
       trackError('checkout_error', order?.error || 'No se pudo crear la orden', {
         address: shippingAddress,
-        cart_items: items.length,
+        cart_items: cartItems.length,
       });
       setError(order?.error || 'No se pudo crear la orden. Intenta de nuevo.');
       setLoading(false);
@@ -268,7 +277,6 @@ export default function CheckoutPage() {
     );
   }
 
-  // Estilos del tema oscuro
   const glassCard = {
     background: 'rgba(26, 26, 26, 0.5)',
     backdropFilter: 'blur(16px)',
@@ -335,14 +343,8 @@ export default function CheckoutPage() {
           gap: 'clamp(24px, 5vw, 48px)',
           alignItems: 'start',
         }}>
-          {/* Formulario */}
           <div style={glassCard}>
-            <h2 style={{
-              fontSize: '24px',
-              fontWeight: '800',
-              marginBottom: '32px',
-              color: c.textMain,
-            }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '32px', color: c.textMain }}>
               Datos de envío
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -399,7 +401,6 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* Resumen del pedido */}
           <div style={{
             ...glassCard,
             position: 'sticky',
@@ -407,12 +408,7 @@ export default function CheckoutPage() {
             border: '1px solid rgba(184, 134, 11, 0.25)',
             boxShadow: '0 12px 28px rgba(0,0,0,0.4)',
           }}>
-            <h2 style={{
-              fontSize: '24px',
-              fontWeight: '800',
-              marginBottom: '24px',
-              color: c.textMain,
-            }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '24px', color: c.textMain }}>
               Tu pedido
             </h2>
 
@@ -482,7 +478,11 @@ export default function CheckoutPage() {
 
             {error && <div style={{ ...styles.error, marginBottom: '16px' }}>{error}</div>}
 
-            <button onClick={handleAddressSubmit} disabled={loading} style={styles.button(loading)}>
+            <button
+              onClick={handleAddressSubmit}
+              disabled={loading}
+              style={styles.button(loading)}
+            >
               {loading ? 'Procesando...' : 'Continuar al pago'}
             </button>
             <button onClick={() => router.push('/carrito')} style={mergeStyles(styles.buttonSecondary(), { marginTop: '10px' })}>

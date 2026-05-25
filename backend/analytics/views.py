@@ -87,7 +87,7 @@ class TrackEventView(APIView):
                 status=status.HTTP_200_OK
             )
 
-        # Guardar evento normalmente
+        # Guardar evento normalmente (con protección ante fallos de índice)
         event = Event(
             user_id=user_id,
             session_id=session_id,
@@ -99,7 +99,11 @@ class TrackEventView(APIView):
             error_message=data.get('error_message'),
             idempotency_key=idempotency_key,
         )
-        event.save()
+        try:
+            event.save()
+        except Exception as e:
+            # Si falla (por el índice unique), lo ignoramos y no interrumpimos el checkout
+            print(f"Error guardando evento (ignorado): {e}")
         return Response({'status': 'ok'}, status=status.HTTP_201_CREATED)
 
 

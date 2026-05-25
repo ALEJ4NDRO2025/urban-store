@@ -1,6 +1,9 @@
+// frontend/app/layout.js
 import { Inter } from 'next/font/google'
 import Navbar from './components/NavBar'
 import Providers from './providers'
+// ✅ Importa el componente oficial de Google Analytics para Next.js
+import { GoogleAnalytics } from '@next/third-parties/google'
 
 // Configurar la fuente Inter
 const inter = Inter({ subsets: ['latin'] })
@@ -29,6 +32,9 @@ export default function RootLayout({ children }) {
             {children}
           </div>
         </Providers>
+        
+        {/* 🔥 Google Analytics 4 – lee automáticamente la variable de entorno NEXT_PUBLIC_GA_MEASUREMENT_ID */}
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
       </body>
     </html>
   )

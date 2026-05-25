@@ -6,7 +6,6 @@ from .models import Cart, CartItem
 import jwt
 
 def get_user_id(request):
-    """Extrae el email (user_id) del token JWT"""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         return None
@@ -53,7 +52,6 @@ class CartView(APIView):
         if not user_id:
             return Response({'error': 'Token inválido'}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Validar campos obligatorios
         slug = request.data.get('product_slug')
         if not slug:
             return Response({'error': 'product_slug es requerido'}, status=status.HTTP_400_BAD_REQUEST)
@@ -75,7 +73,6 @@ class CartView(APIView):
         except Cart.DoesNotExist:
             cart = Cart(user_id=user_id)
 
-        # Buscar si ya existe el mismo producto+talla+color
         for item in cart.items:
             if item.product_slug == slug and item.selected_size == size and item.selected_color == color:
                 item.quantity += qty
@@ -83,7 +80,6 @@ class CartView(APIView):
                 cart.save()
                 return Response(cart_to_dict(cart), status=status.HTTP_200_OK)
 
-        # Crear nuevo CartItem
         new_item = CartItem(
             product_slug=slug,
             product_name=request.data.get('product_name', ''),
@@ -145,8 +141,41 @@ class CartView(APIView):
         if not slug or size is None or color is None:
             return Response({'error': 'Faltan datos para eliminar producto'}, status=400)
 
-        # Filtrar items (eliminar el que coincida)
         cart.items = [i for i in cart.items if not (i.product_slug == slug and i.selected_size == size and i.selected_color == color)]
         cart.calculate_totals()
         cart.save()
         return Response(cart_to_dict(cart))
+
+
+class CartSyncView(APIView):
+    """Reemplaza el carrito completo con los items que envía el frontend."""
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        user_id = get_user_id(request)
+        if not user_id:
+            return Response({'error': 'Token inválido'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        items_data = request.data.get('items', [])
+
+        try:
+            cart = Cart.objects.get(user_id=user_id)
+        except Cart.DoesNotExist:
+            cart = Cart(user_id=user_id)
+
+        cart.items = [
+            CartItem(
+                product_slug=item['product_slug'],
+                product_name=item.get('product_name', ''),
+                quantity=item.get('quantity', 1),
+                selected_size=item.get('selected_size', ''),
+                selected_color=item.get('selected_color', ''),
+                price_at_time=item.get('price_at_time', 0),
+                image=item.get('image', ''),
+            )
+            for item in items_data
+        ]
+        cart.calculate_totals()
+        cart.save()
+        return Response({'status': 'ok', 'total': cart.total, 'item_count': cart.item_count})

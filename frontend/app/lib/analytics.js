@@ -1,11 +1,4 @@
 // frontend/app/lib/analytics.js
-/**
- * Utilidad para registrar eventos de usuario en el backend de analíticas.
- * Soporta eventos estándar y eventos de error.
- * 
- * 🔒 El session_id se persiste en window y localStorage.
- * 🔒 Cada evento incluye un idempotency_key para evitar duplicados.
- */
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -36,9 +29,6 @@ function getSessionId() {
 
 /**
  * Genera una clave de idempotencia basada en session, tipo de evento, producto y ventana temporal.
- * @param {string} eventType 
- * @param {string} productSlug 
- * @returns {Promise<string>} hash SHA-256 hexadecimal
  */
 async function generateIdempotencyKey(eventType, productSlug = 'no-slug') {
   const sessionId = getSessionId();
@@ -53,15 +43,23 @@ async function generateIdempotencyKey(eventType, productSlug = 'no-slug') {
 }
 
 /**
- * Registra un evento de usuario en el servidor.
- * @param {string} eventType 
- * @param {Object} data - product_slug, product_name, price, metadata, etc.
+ * Envía un evento a Google Analytics 4 si el script está disponible.
+ */
+function gtagEvent(eventName, params = {}) {
+  if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+    window.gtag('event', eventName, params);
+  }
+}
+
+/**
+ * Registra un evento de usuario en el backend y en GA4.
  */
 export async function trackEvent(eventType, data = {}) {
   const sessionId = getSessionId();
   const productSlug = data.product_slug || 'no-slug';
   const idempotency_key = await generateIdempotencyKey(eventType, productSlug);
 
+  // 1. Enviar al backend propio
   const payload = {
     event_type: eventType,
     session_id: sessionId,
@@ -76,20 +74,28 @@ export async function trackEvent(eventType, data = {}) {
       body: JSON.stringify(payload),
     });
   } catch (err) {
-    console.warn('Error registrando evento:', err);
+    console.warn('Error registrando evento en backend:', err);
   }
+
+  // 2. Enviar a Google Analytics 4
+  const gaParams = {
+    event_category: 'ecommerce',
+    event_label: data.product_name || data.product_slug || '',
+    value: parseFloat(data.price) || 0,
+    ...data.metadata,            // añade cualquier metadato extra
+  };
+
+  gtagEvent(eventType, gaParams);
 }
 
 /**
- * Registra un evento de error en el servidor.
- * @param {string} errorType 
- * @param {string} errorMessage 
- * @param {Object} context 
+ * Registra un evento de error en el backend y en GA4.
  */
 export async function trackError(errorType, errorMessage, context = {}) {
   const sessionId = getSessionId();
   const idempotency_key = await generateIdempotencyKey(errorType, 'error');
 
+  // 1. Enviar al backend propio
   const payload = {
     event_type: errorType,
     session_id: sessionId,
@@ -105,6 +111,13 @@ export async function trackError(errorType, errorMessage, context = {}) {
       body: JSON.stringify(payload),
     });
   } catch (err) {
-    console.warn('Error registrando error:', err);
+    console.warn('Error registrando error en backend:', err);
   }
+
+  // 2. Enviar a Google Analytics 4
+  gtagEvent(errorType, {
+    event_category: 'error',
+    event_label: errorMessage,
+    ...context,
+  });
 }
