@@ -41,7 +41,10 @@ const ANALYTICS_COLORS = {
     sales: '#4285F4',
     views: '#0F9D58',
   },
-  funnel: '#4285F4', // Color para el embudo de pago
+  funnel: '#4285F4', // Color para el embudo de pago (detalle)
+
+  // 🎨 Nueva paleta profesional para el embudo completo
+  funnelSteps: ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F'],
 };
 
 export default function AdminPage() {
@@ -64,6 +67,7 @@ export default function AdminPage() {
   // --- Analíticas ---
   const [stats, setStats] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [funnel, setFunnel] = useState(null);
 
   // ============================================================
   // EFECTOS INICIALES
@@ -102,6 +106,7 @@ export default function AdminPage() {
       });
   }, [router]);
 
+  // Cargar dashboard-stats al entrar en Analíticas
   useEffect(() => {
     if (activeTab !== 'analytics') return;
     const token = localStorage.getItem('access');
@@ -120,6 +125,20 @@ export default function AdminPage() {
         console.error(err);
         setLoadingAnalytics(false);
       });
+  }, [activeTab]);
+
+  // Cargar funnel al entrar en Analíticas
+  useEffect(() => {
+    if (activeTab !== 'analytics') return;
+    const token = localStorage.getItem('access');
+    if (!token) return;
+
+    fetch(`${API_URL}/api/analytics/funnel/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then(data => setFunnel(data.funnel))
+      .catch(err => console.error('Error cargando funnel:', err));
   }, [activeTab]);
 
   // ============================================================
@@ -393,7 +412,7 @@ export default function AdminPage() {
   );
 
   // ============================================================
-  // PANEL DE ANALÍTICAS (TODAS LAS GRÁFICAS CON PALETA PROFESIONAL)
+  // PANEL DE ANALÍTICAS (COMPLETO, SIN OMISIONES)
   // ============================================================
   const renderAnalyticsPanel = () => {
     if (loadingAnalytics) return <div style={{ textAlign: 'center', padding: '40px' }}>Cargando estadísticas...</div>;
@@ -470,7 +489,84 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Embudo de pago */}
+        {/* 🆕 NUEVO: Embudo de conversión completo (sesiones únicas) - PALETA PROFESIONAL */}
+        {funnel && funnel.length > 0 && (
+          <div style={{ ...glassCard, marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '20px', marginBottom: '20px', color: c.textMain }}>
+              🔽 Embudo de conversión (sesiones únicas)
+            </h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={funnel.map(f => ({
+                  ...f,
+                  label:
+                    f.step === 'page_view' ? 'Visitas' :
+                    f.step === 'product_view' ? 'Vieron producto' :
+                    f.step === 'add_to_cart' ? 'Agregaron al carrito' :
+                    f.step === 'begin_checkout' ? 'Iniciaron checkout' :
+                    'Compraron'
+                }))}
+                layout="vertical"
+              >
+                <CartesianGrid stroke={c.border} strokeDasharray="3 3" />
+                <XAxis type="number" stroke={c.textSub} />
+                <YAxis dataKey="label" type="category" width={150} stroke={c.textSub} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: c.card,
+                    border: `1px solid ${c.border}`,
+                    borderRadius: '8px'
+                  }}
+                />
+                <Bar dataKey="count" name="Sesiones únicas">
+                  {funnel.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={ANALYTICS_COLORS.funnelSteps[index % ANALYTICS_COLORS.funnelSteps.length]}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+
+            {/* Tasas de conversión entre pasos */}
+            {funnel.length >= 2 && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                marginTop: 16,
+                color: c.textSub,
+                gap: '12px'
+              }}>
+                {funnel.slice(0, -1).map((step, idx) => {
+                  const next = funnel[idx + 1];
+                  const rate = step.count > 0
+                    ? ((next.count / step.count) * 100).toFixed(1)
+                    : 0;
+                  const label1 =
+                    step.step === 'page_view' ? 'Visitas' :
+                    step.step === 'product_view' ? 'Vieron' :
+                    step.step === 'add_to_cart' ? 'Carrito' :
+                    'Checkout';
+                  const label2 =
+                    next.step === 'product_view' ? 'Vieron' :
+                    next.step === 'add_to_cart' ? 'Carrito' :
+                    next.step === 'begin_checkout' ? 'Checkout' :
+                    'Compra';
+                  return (
+                    <span key={idx}>
+                      {label1} → {label2}:{' '}
+                      <strong style={{ color: c.primary }}>{rate}%</strong>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Embudo de pago (detalle del checkout) - original */}
         {stats.checkout_started_count !== undefined && (
           <div style={{ ...glassCard, marginBottom: '40px' }}>
             <h2 style={{ fontSize: '20px', marginBottom: '20px', color: c.textMain }}>⏳ Embudo de pago</h2>
@@ -573,7 +669,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Tabla de rendimiento por producto (nuevo) */}
+        {/* Tabla de rendimiento por producto */}
         {productPerformance.length > 0 && (
           <div style={{ ...glassCard, marginBottom: '40px' }}>
             <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600', color: c.textMain }}>
@@ -617,7 +713,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Errores por día (nuevo) */}
+        {/* Errores por día */}
         {errorsTimeline.length > 0 && (
           <div style={{ ...glassCard, marginBottom: '40px' }}>
             <h2 style={{ fontSize: '20px', marginBottom: '20px', fontWeight: '600', color: c.textMain }}>

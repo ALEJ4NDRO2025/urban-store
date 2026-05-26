@@ -4,6 +4,8 @@ import Navbar from './components/NavBar'
 import Providers from './providers'
 // ✅ Importa el componente oficial de Google Analytics para Next.js
 import { GoogleAnalytics } from '@next/third-parties/google'
+import PageViewTracker from './components/PageViewTracker'
+
 
 // Configurar la fuente Inter
 const inter = Inter({ subsets: ['latin'] })
@@ -27,6 +29,7 @@ export default function RootLayout({ children }) {
       }}>
         <Providers>
           <Navbar />
+          <PageViewTracker />
           {/* Espaciado responsivo para que el contenido no quede pegado al navbar */}
           <div style={{ paddingTop: 'clamp(80px, 12vw, 100px)' }}>
             {children}
@@ -35,6 +38,8 @@ export default function RootLayout({ children }) {
         
         {/* 🔥 Google Analytics 4 – lee automáticamente la variable de entorno NEXT_PUBLIC_GA_MEASUREMENT_ID */}
         <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
+        
+        
       </body>
     </html>
   )
