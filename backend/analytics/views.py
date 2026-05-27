@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
 from django.conf import settings
+from datetime import timezone as tz
 import jwt
 
 from .models import Event
@@ -224,6 +225,7 @@ class DashboardStatsView(APIView):
                 {'slug': k, 'count': v}
                 for k, v in sorted(view_counts.items(), key=lambda x: x[1], reverse=True)[:5]
             ]
+            
 
         # ------------------------------------------------------------
         # 5. Ventas por día (total, sin cambios)
@@ -667,7 +669,7 @@ class RFMView(APIView):
             last_purchase = r['last_purchase']
             # ⚠️ CORRECCIÓN: Asegurar que last_purchase tenga zona horaria (UTC)
             if timezone.is_naive(last_purchase):
-                last_purchase = timezone.make_aware(last_purchase, timezone.utc)
+                last_purchase = timezone.make_aware(last_purchase, tz.utc) #<- Corrección importante
 
             recency = (end_date - last_purchase).days
             freq = r['frequency']
@@ -738,3 +740,206 @@ class FunnelView(APIView):
             'start_date': start_date.isoformat(),
             'end_date': end_date.isoformat(),
         })
+    
+    # ============================================================
+# 🆕 VISTA 5: ALERTAS INTELIGENTES (Fase 3)
+# ============================================================
+class AlertsView(APIView):
+    """
+    GET /api/analytics/alerts/
+    Retorna una lista de alertas automáticas basadas en reglas de negocio.
+    Solo accesible para administradores.
+    """
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        # Verificar permisos de administrador
+        if not is_admin(request):
+            return Response(
+                {'error': 'No autorizado. Se requieren permisos de administrador.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        now = timezone.now()  # Fecha y hora actual
+        alerts = []           # Lista donde acumularemos las alertas
+
+        # ========================================================
+        # REGLA 1: Tasa de abandono alta en las últimas 24 horas
+        # ========================================================
+        # Objetivo: Detectar si muchos usuarios inician checkout pero no compran.
+        # Cálculo: (sesiones con begin_checkout - sesiones con purchase) / sesiones con begin_checkout
+        # Se activa si: la tasa es > 70% Y hay al menos 3 checkouts iniciados (para evitar falsos positivos con poco tráfico).
+        last_24h = now - timedelta(hours=24)
+
+        # Obtenemos todas las sesiones que iniciaron checkout en las últimas 24h
+        begin_checkout_24h = Event.objects(
+            event_type='begin_checkout',
+            created_at__gte=last_24h
+        )
+        checkout_ids = set()
+        for ev in begin_checkout_24h:
+            checkout_ids.add(get_event_identifier(ev))  # user_id o session_id único
+
+        # Obtenemos todas las sesiones que completaron una compra en las últimas 24h
+        purchase_24h = Event.objects(
+            event_type='purchase',
+            created_at__gte=last_24h
+        )
+        purchase_ids = set()
+        for ev in purchase_24h:
+            purchase_ids.add(get_event_identifier(ev))
+
+        # Calculamos cuántas sesiones abandonaron (iniciaron checkout pero no compraron)
+        abandoned = len(checkout_ids - purchase_ids)
+
+        # Calculamos el porcentaje de abandono
+        if checkout_ids:
+            abandonment_24h = round((abandoned / len(checkout_ids)) * 100, 1)
+        else:
+            abandonment_24h = 0
+
+        # Si la tasa es mayor al 70% y hay suficientes checkouts, generamos alerta crítica
+        if abandonment_24h > 70 and len(checkout_ids) >= 3:
+            alerts.append({
+                'type': 'high_abandonment',
+                'message': f'Tasa de abandono del {abandonment_24h}% en las últimas 24h 😭 ({abandoned} de {len(checkout_ids)} checkouts)',
+                'severity': 'critical',
+                'timestamp': now.isoformat(),
+            })
+
+        # ========================================================
+        # REGLA 2: Producto con muchas vistas pero 0 conversión
+        # ========================================================
+        # Objetivo: Identificar productos que atraen interés pero no venden nada.
+        # Cálculo: Buscar productos con >10 vistas únicas en los últimos 7 días y 0 compras.
+        # Se activa si: un producto cumple ambas condiciones.
+        seven_days_ago = now - timedelta(days=7)
+
+        # Paso 1: Encontrar productos con más de 10 vistas únicas en 7 días
+        pipeline_views = [
+            {"$match": {"event_type": "product_view", "created_at": {"$gte": seven_days_ago, "$lte": now}}},
+            {"$group": {"_id": {"product_slug": "$product_slug", "session_id": "$session_id"}}},  # agrupa por producto+sesión
+            {"$group": {"_id": "$_id.product_slug", "unique_views": {"$sum": 1}}},                # cuenta sesiones únicas por producto
+            {"$match": {"unique_views": {"$gt": 10}}},                                            # filtra los que tienen >10
+        ]
+        popular_products = list(Event.objects.aggregate(*pipeline_views))
+
+        # Paso 2: Para cada producto popular, verificar si tuvo compras (sesiones únicas)
+        for prod in popular_products:
+            slug = prod['_id']
+            pipeline_purchase = [
+                {"$match": {"event_type": "purchase", "product_slug": slug, "created_at": {"$gte": seven_days_ago, "$lte": now}}},
+                {"$group": {"_id": "$session_id"}},        # agrupa por sesión para contar compras únicas
+                {"$count": "count"}                        # cuenta cuántas sesiones compraron
+            ]
+            purchase_count_result = list(Event.objects.aggregate(*pipeline_purchase))
+            purchase_count = purchase_count_result[0]['count'] if purchase_count_result else 0
+
+            # Si no hubo compras, generamos alerta de advertencia
+            if purchase_count == 0:
+                alerts.append({
+                    'type': 'popular_no_conversion',
+                    'message': f'Producto "{slug}" tuvo {prod["unique_views"]} vistas únicas sin ninguna compra en 7 días',
+                    'severity': 'warning',
+                    'timestamp': now.isoformat(),
+                    'product_slug': slug,
+                })
+
+        # ========================================================
+        # REGLA 3: Errores de pago en la última hora
+        # ========================================================
+        # Objetivo: Detectar fallos en la pasarela de pago (Stripe) de forma temprana.
+        # Cálculo: Contar eventos 'payment_error' en los últimos 60 minutos.
+        # Se activa si: hay al menos 1 error.
+        last_hour = now - timedelta(hours=1)
+        payment_errors = Event.objects(
+            event_type='payment_error',
+            created_at__gte=last_hour
+        ).count()
+
+        if payment_errors > 0:
+            alerts.append({
+                'type': 'payment_errors',
+                'message': f'Se detectaron {payment_errors} errores de pago en la última hora',
+                'severity': 'critical',
+                'timestamp': now.isoformat(),
+            })
+
+        # ========================================================
+        # REGLA 4: Carritos sin checkout en las últimas 6 horas
+        # ========================================================
+        # Objetivo: Detectar si hay un problema en el flujo de compra (ej. botón no funciona).
+        # Cálculo: Sesiones con 'add_to_cart' pero sin 'begin_checkout' en 6h.
+        # Se activa si: hay 5 o más carritos abandonados sin iniciar checkout.
+        last_6h = now - timedelta(hours=6)
+
+        # Sesiones que añadieron al carrito
+        add_to_cart_6h = Event.objects(
+            event_type='add_to_cart',
+            created_at__gte=last_6h
+        )
+        cart_sessions = set()
+        for ev in add_to_cart_6h:
+            cart_sessions.add(ev.session_id)
+
+        # Sesiones que iniciaron checkout
+        begin_checkout_6h = Event.objects(
+            event_type='begin_checkout',
+            created_at__gte=last_6h
+        )
+        checkout_sessions_6h = set()
+        for ev in begin_checkout_6h:
+            checkout_sessions_6h.add(ev.session_id)
+
+        # Carritos que no iniciaron checkout
+        carts_without_checkout = len(cart_sessions - checkout_sessions_6h)
+
+        if carts_without_checkout >= 5:
+            alerts.append({
+                'type': 'carts_abandoned',
+                'message': f'{carts_without_checkout} carritos no iniciaron checkout en las últimas 6h',
+                'severity': 'warning',
+                'timestamp': now.isoformat(),
+            })
+
+        # ========================================================
+        # REGLA 5 (EXTRA): Sesiones con muchos eventos pero sin compra
+        # ========================================================
+        # Objetivo: Detectar usuarios atascados (ej. refrescando mucho la página)
+        # que podrían indicar un error en la UI o un ataque de bots.
+        # Cálculo: Sesiones con >15 eventos totales en 24h y 0 compras.
+        # Se activa si: hay al menos 1 sesión en ese estado.
+        pipeline_sessions = [
+            {"$match": {"created_at": {"$gte": last_24h, "$lte": now}}},
+            {"$group": {
+                "_id": "$session_id",
+                "total_events": {"$sum": 1},
+                "has_purchase": {"$max": {"$cond": [{"$eq": ["$event_type", "purchase"]}, 1, 0]}}
+            }},
+            {"$match": {"total_events": {"$gt": 15}, "has_purchase": 0}},
+            {"$count": "stuck_sessions"}
+        ]
+        stuck = list(Event.objects.aggregate(*pipeline_sessions))
+        stuck_count = stuck[0]['stuck_sessions'] if stuck else 0
+
+        if stuck_count > 0:
+            alerts.append({
+                'type': 'stuck_sessions',
+                'message': f'{stuck_count} sesiones con más de 15 eventos en 24h sin completar compra',
+                'severity': 'info',
+                'timestamp': now.isoformat(),
+            })
+
+        # ========================================================
+        # Si no se generó ninguna alerta, informamos que todo está bien
+        # ========================================================
+        if not alerts:
+            alerts.append({
+                'type': 'all_clear',
+                'message': 'No se detectaron anomalías en este momento.',
+                'severity': 'info',
+                'timestamp': now.isoformat(),
+            })
+
+        return Response({'alerts': alerts})
