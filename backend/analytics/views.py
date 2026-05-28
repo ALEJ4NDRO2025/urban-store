@@ -59,12 +59,13 @@ def get_event_identifier(ev):
     return ev.user_id if ev.user_id else ev.session_id
 
 
-def get_unique_sessions(start_date, end_date, steps=None):
+def get_unique_sessions(start_date, end_date, steps=None, source=None):
     """
     Calcula cuántas sesiones únicas (session_id) realizaron cada tipo de evento
     dentro del rango [start_date, end_date].
 
     Pasos por defecto: embudo de conversión estándar.
+    Si se especifica 'source', filtra solo los eventos de esa fuente (google, direct, etc.).
     Retorna lista de dicts: [{"step": "page_view", "count": 123}, ...]
     """
     if steps is None:
@@ -72,12 +73,17 @@ def get_unique_sessions(start_date, end_date, steps=None):
 
     funnel = []
     for step in steps:
+        match_stage = {
+            "event_type": step,
+            "created_at": {"$gte": start_date, "$lte": end_date},
+            "session_id": {"$ne": None}
+        }
+        # 🆕 Fase 5: filtrar por fuente de tráfico si el parámetro viene informado
+        if source:
+            match_stage["source"] = source
+
         pipeline = [
-            {"$match": {
-                "event_type": step,
-                "created_at": {"$gte": start_date, "$lte": end_date},
-                "session_id": {"$ne": None}
-            }},
+            {"$match": match_stage},
             {"$group": {"_id": "$session_id"}},
             {"$count": "count"}
         ]
@@ -130,6 +136,7 @@ class TrackEventView(APIView):
             metadata=data.get('metadata', {}),
             error_message=data.get('error_message'),
             idempotency_key=idempotency_key,
+            source=data.get('source'),      # 🆕 Fase 5: guardar fuente de tráfico
         )
         try:
             event.save()
@@ -140,8 +147,6 @@ class TrackEventView(APIView):
 
 # ============================================================
 # VISTA 2: ESTADÍSTICAS DASHBOARD (solo admin)
-# Ahora con soporte de métricas únicas por sesión (mode=unique),
-# manteniendo unidades totales vendidas y con métricas de retención.
 # ============================================================
 class DashboardStatsView(APIView):
     authentication_classes = []
@@ -200,7 +205,6 @@ class DashboardStatsView(APIView):
         # 4. Top productos más vistos (según el modo)
         # ------------------------------------------------------------
         if mode == 'unique':
-            # Vistas únicas: cuenta sesiones distintas que vieron cada producto
             pipeline = [
                 {"$match": {"event_type": "product_view", "created_at": {"$gte": start_date, "$lte": end_date}}},
                 {"$group": {"_id": {"product_slug": "$product_slug", "session_id": "$session_id"}}},
@@ -211,7 +215,6 @@ class DashboardStatsView(APIView):
             top_viewed_unique = list(Event.objects.aggregate(*pipeline))
             top_viewed = [{'slug': item['_id'], 'count': item['unique_views']} for item in top_viewed_unique]
         else:
-            # Modo total: suma de todos los eventos product_view
             view_events = Event.objects(
                 event_type='product_view',
                 created_at__gte=start_date,
@@ -225,7 +228,6 @@ class DashboardStatsView(APIView):
                 {'slug': k, 'count': v}
                 for k, v in sorted(view_counts.items(), key=lambda x: x[1], reverse=True)[:5]
             ]
-            
 
         # ------------------------------------------------------------
         # 5. Ventas por día (total, sin cambios)
@@ -264,7 +266,6 @@ class DashboardStatsView(APIView):
         # 7. Conteo de eventos por tipo (según el modo)
         # ------------------------------------------------------------
         if mode == 'unique':
-            # Contar sesiones únicas para cada tipo
             product_views_unique = len(set(
                 Event.objects(
                     event_type='product_view',
@@ -289,7 +290,6 @@ class DashboardStatsView(APIView):
                 'purchase': purchases,
             }
         else:
-            # Modo total (original)
             add_to_cart_events = Event.objects(
                 event_type='add_to_cart',
                 created_at__gte=start_date,
@@ -403,7 +403,6 @@ class DashboardStatsView(APIView):
         # ============================================================
         product_performance = []
         if mode == 'unique':
-            # --- Vistas únicas por producto ---
             pipeline_views = [
                 {"$match": {"event_type": "product_view", "created_at": {"$gte": start_date, "$lte": end_date}}},
                 {"$group": {"_id": {"product_slug": "$product_slug", "session_id": "$session_id"}}},
@@ -414,7 +413,6 @@ class DashboardStatsView(APIView):
                 for item in Event.objects.aggregate(*pipeline_views)
             }
 
-            # --- Add to cart únicos (sesiones) ---
             pipeline_cart = [
                 {"$match": {"event_type": "add_to_cart", "created_at": {"$gte": start_date, "$lte": end_date}}},
                 {"$group": {"_id": {"product_slug": "$product_slug", "session_id": "$session_id"}}},
@@ -425,7 +423,6 @@ class DashboardStatsView(APIView):
                 for item in Event.objects.aggregate(*pipeline_cart)
             }
 
-            # --- Compras únicas (sesiones) y unidades totales ---
             pipeline_purchases = [
                 {"$match": {"event_type": "purchase", "created_at": {"$gte": start_date, "$lte": end_date}}},
                 {"$group": {
@@ -446,7 +443,6 @@ class DashboardStatsView(APIView):
                 for item in Event.objects.aggregate(*pipeline_purchases)
             }
 
-            # Construir product_performance combinando los tres
             all_slugs = set(unique_view_counts.keys()) | set(unique_cart_counts.keys()) | set(purchase_data.keys())
             for slug in all_slugs:
                 views = unique_view_counts.get(slug, 0)
@@ -455,10 +451,8 @@ class DashboardStatsView(APIView):
                 purchases_sessions = purchase_info['sessions']
                 purchases_units = purchase_info['units']
 
-                # Tasa de conversión: sesiones que compraron / sesiones que vieron
                 rate = round((purchases_sessions / views) * 100, 1) if views > 0 else 0
 
-                # Nombre del producto
                 name = slug
                 if slug != 'sin-slug':
                     ev = Event.objects(product_slug=slug).first()
@@ -470,12 +464,11 @@ class DashboardStatsView(APIView):
                     'name': name,
                     'views': views,
                     'add_to_cart': add_to_cart,
-                    'purchases': purchases_sessions,       # Sesiones únicas que compraron
-                    'purchases_units': purchases_units,    # Unidades totales vendidas
+                    'purchases': purchases_sessions,
+                    'purchases_units': purchases_units,
                     'conversion_rate': rate,
                 })
         else:
-            # Modo total (original)
             all_events = Event.objects(created_at__gte=start_date, created_at__lte=end_date)
             product_data = {}
             for ev in all_events:
@@ -505,7 +498,7 @@ class DashboardStatsView(APIView):
                     'name': data['name'],
                     'views': views,
                     'add_to_cart': data['add_to_cart'],
-                    'purchases': purchases,            # Unidades totales
+                    'purchases': purchases,
                     'conversion_rate': rate,
                 })
 
@@ -573,12 +566,11 @@ class DashboardStatsView(APIView):
         }
 
         # ============================================================
-        # 🆕 13. MÉTRICAS DE RETENCIÓN (Fase 2)
+        # 13. MÉTRICAS DE RETENCIÓN (Fase 2)
         # ============================================================
         retention_days = 90
         retention_start = end_date - timedelta(days=retention_days)
 
-        # Tasa de recompra: clientes con más de una compra en el período
         pipeline_rebuy = [
             {"$match": {"event_type": "purchase", "created_at": {"$gte": retention_start, "$lte": end_date}}},
             {"$group": {"_id": "$user_id", "compras": {"$sum": 1}}},
@@ -603,6 +595,21 @@ class DashboardStatsView(APIView):
             'total_unique_buyers': total_unique_buyers,
             'period_days': retention_days,
         }
+
+        # ============================================================
+        # 14. VISITAS POR FUENTE DE TRÁFICO (Fase 5)
+        # ============================================================
+        pipeline_source = [
+            {"$match": {"event_type": "page_view", "created_at": {"$gte": start_date, "$lte": end_date}}},
+            {"$group": {"_id": "$session_id", "source": {"$first": "$source"}}},
+            {"$group": {"_id": "$source", "sessions": {"$sum": 1}}},
+            {"$sort": {"sessions": -1}}
+        ]
+        traffic_sources = list(Event.objects.aggregate(*pipeline_source))
+        traffic_sources_list = [
+            {'source': item['_id'] or 'direct', 'sessions': item['sessions']}
+            for item in traffic_sources
+        ]
 
         # ============================================================
         # RESPUESTA FINAL ENRIQUECIDA
@@ -631,12 +638,13 @@ class DashboardStatsView(APIView):
             'errors_timeline': errors_timeline,
             'session_stats': session_stats,
 
-            'retention_metrics': retention_metrics,   # ← NUEVO
+            'retention_metrics': retention_metrics,
+            'traffic_sources': traffic_sources_list,
         })
 
 
 # ============================================================
-# 🆕 VISTA 3: ANÁLISIS RFM (Recency, Frequency, Monetary)
+# VISTA 3: ANÁLISIS RFM (Recency, Frequency, Monetary)
 # ============================================================
 class RFMView(APIView):
     authentication_classes = []
@@ -650,11 +658,15 @@ class RFMView(APIView):
             )
 
         end_date = timezone.now()
-        start_date = end_date - timedelta(days=90)  # Período de análisis RFM
+        start_date = end_date - timedelta(days=90)
 
-        # Pipeline para agrupar compras por usuario
+        # Pipeline que SOLO toma compras de usuarios registrados (user_id != null)
         pipeline = [
-            {"$match": {"event_type": "purchase", "created_at": {"$gte": start_date, "$lte": end_date}}},
+            {"$match": {
+                "event_type": "purchase",
+                "created_at": {"$gte": start_date, "$lte": end_date},
+                "user_id": {"$ne": None}
+            }},
             {"$group": {
                 "_id": "$user_id",
                 "last_purchase": {"$max": "$created_at"},
@@ -667,15 +679,13 @@ class RFMView(APIView):
         resultados = []
         for r in rfm_data:
             last_purchase = r['last_purchase']
-            # ⚠️ CORRECCIÓN: Asegurar que last_purchase tenga zona horaria (UTC)
             if timezone.is_naive(last_purchase):
-                last_purchase = timezone.make_aware(last_purchase, tz.utc) #<- Corrección importante
+                last_purchase = timezone.make_aware(last_purchase, tz.utc)
 
             recency = (end_date - last_purchase).days
             freq = r['frequency']
             money = r['monetary']
 
-            # Clasificación simple basada en umbrales (ajustables)
             if recency <= 7 and freq >= 2 and money >= 100000:
                 segmento = 'VIP'
             elif recency <= 30 and freq >= 1:
@@ -686,14 +696,13 @@ class RFMView(APIView):
                 segmento = 'Perdido'
 
             resultados.append({
-                'user_id': r['_id'],
+                'visitor_id': r['_id'],         # aquí será el email del usuario
                 'recency': recency,
                 'frequency': freq,
                 'monetary': money,
                 'segmento': segmento
             })
 
-        # Ordenar por recency ascendente (clientes más recientes primero)
         resultados.sort(key=lambda x: x['recency'])
 
         return Response({
@@ -733,110 +742,76 @@ class FunnelView(APIView):
             except ValueError:
                 return Response({'error': 'Formato de fecha inválido para end (use YYYY-MM-DD)'}, status=400)
 
-        funnel_data = get_unique_sessions(start_date, end_date)
+        # Parámetro opcional para filtrar por fuente de tráfico
+        source = request.query_params.get('source')
+
+        funnel_data = get_unique_sessions(start_date, end_date, source=source)
 
         return Response({
             'funnel': funnel_data,
             'start_date': start_date.isoformat(),
             'end_date': end_date.isoformat(),
         })
-    
-    # ============================================================
-# 🆕 VISTA 5: ALERTAS INTELIGENTES (Fase 3)
+
+
+# ============================================================
+# VISTA 5: ALERTAS INTELIGENTES (Fase 3)
 # ============================================================
 class AlertsView(APIView):
-    """
-    GET /api/analytics/alerts/
-    Retorna una lista de alertas automáticas basadas en reglas de negocio.
-    Solo accesible para administradores.
-    """
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
-        # Verificar permisos de administrador
         if not is_admin(request):
             return Response(
                 {'error': 'No autorizado. Se requieren permisos de administrador.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        now = timezone.now()  # Fecha y hora actual
-        alerts = []           # Lista donde acumularemos las alertas
+        now = timezone.now()
+        alerts = []
 
-        # ========================================================
-        # REGLA 1: Tasa de abandono alta en las últimas 24 horas
-        # ========================================================
-        # Objetivo: Detectar si muchos usuarios inician checkout pero no compran.
-        # Cálculo: (sesiones con begin_checkout - sesiones con purchase) / sesiones con begin_checkout
-        # Se activa si: la tasa es > 70% Y hay al menos 3 checkouts iniciados (para evitar falsos positivos con poco tráfico).
+        # Regla 1: Abandono alto en 24h
         last_24h = now - timedelta(hours=24)
-
-        # Obtenemos todas las sesiones que iniciaron checkout en las últimas 24h
-        begin_checkout_24h = Event.objects(
-            event_type='begin_checkout',
-            created_at__gte=last_24h
-        )
+        begin_checkout_24h = Event.objects(event_type='begin_checkout', created_at__gte=last_24h)
         checkout_ids = set()
         for ev in begin_checkout_24h:
-            checkout_ids.add(get_event_identifier(ev))  # user_id o session_id único
-
-        # Obtenemos todas las sesiones que completaron una compra en las últimas 24h
-        purchase_24h = Event.objects(
-            event_type='purchase',
-            created_at__gte=last_24h
-        )
+            checkout_ids.add(get_event_identifier(ev))
+        purchase_24h = Event.objects(event_type='purchase', created_at__gte=last_24h)
         purchase_ids = set()
         for ev in purchase_24h:
             purchase_ids.add(get_event_identifier(ev))
-
-        # Calculamos cuántas sesiones abandonaron (iniciaron checkout pero no compraron)
         abandoned = len(checkout_ids - purchase_ids)
-
-        # Calculamos el porcentaje de abandono
         if checkout_ids:
             abandonment_24h = round((abandoned / len(checkout_ids)) * 100, 1)
         else:
             abandonment_24h = 0
-
-        # Si la tasa es mayor al 70% y hay suficientes checkouts, generamos alerta crítica
         if abandonment_24h > 70 and len(checkout_ids) >= 3:
             alerts.append({
                 'type': 'high_abandonment',
-                'message': f'Tasa de abandono del {abandonment_24h}% en las últimas 24h 😭 ({abandoned} de {len(checkout_ids)} checkouts)',
+                'message': f'Tasa de abandono del {abandonment_24h}% en las últimas 24h ({abandoned} de {len(checkout_ids)} checkouts)',
                 'severity': 'critical',
                 'timestamp': now.isoformat(),
             })
 
-        # ========================================================
-        # REGLA 2: Producto con muchas vistas pero 0 conversión
-        # ========================================================
-        # Objetivo: Identificar productos que atraen interés pero no venden nada.
-        # Cálculo: Buscar productos con >10 vistas únicas en los últimos 7 días y 0 compras.
-        # Se activa si: un producto cumple ambas condiciones.
+        # Regla 2: Producto popular sin conversión
         seven_days_ago = now - timedelta(days=7)
-
-        # Paso 1: Encontrar productos con más de 10 vistas únicas en 7 días
         pipeline_views = [
             {"$match": {"event_type": "product_view", "created_at": {"$gte": seven_days_ago, "$lte": now}}},
-            {"$group": {"_id": {"product_slug": "$product_slug", "session_id": "$session_id"}}},  # agrupa por producto+sesión
-            {"$group": {"_id": "$_id.product_slug", "unique_views": {"$sum": 1}}},                # cuenta sesiones únicas por producto
-            {"$match": {"unique_views": {"$gt": 10}}},                                            # filtra los que tienen >10
+            {"$group": {"_id": {"product_slug": "$product_slug", "session_id": "$session_id"}}},
+            {"$group": {"_id": "$_id.product_slug", "unique_views": {"$sum": 1}}},
+            {"$match": {"unique_views": {"$gt": 10}}},
         ]
         popular_products = list(Event.objects.aggregate(*pipeline_views))
-
-        # Paso 2: Para cada producto popular, verificar si tuvo compras (sesiones únicas)
         for prod in popular_products:
             slug = prod['_id']
             pipeline_purchase = [
                 {"$match": {"event_type": "purchase", "product_slug": slug, "created_at": {"$gte": seven_days_ago, "$lte": now}}},
-                {"$group": {"_id": "$session_id"}},        # agrupa por sesión para contar compras únicas
-                {"$count": "count"}                        # cuenta cuántas sesiones compraron
+                {"$group": {"_id": "$session_id"}},
+                {"$count": "count"}
             ]
             purchase_count_result = list(Event.objects.aggregate(*pipeline_purchase))
             purchase_count = purchase_count_result[0]['count'] if purchase_count_result else 0
-
-            # Si no hubo compras, generamos alerta de advertencia
             if purchase_count == 0:
                 alerts.append({
                     'type': 'popular_no_conversion',
@@ -846,18 +821,9 @@ class AlertsView(APIView):
                     'product_slug': slug,
                 })
 
-        # ========================================================
-        # REGLA 3: Errores de pago en la última hora
-        # ========================================================
-        # Objetivo: Detectar fallos en la pasarela de pago (Stripe) de forma temprana.
-        # Cálculo: Contar eventos 'payment_error' en los últimos 60 minutos.
-        # Se activa si: hay al menos 1 error.
+        # Regla 3: Errores de pago
         last_hour = now - timedelta(hours=1)
-        payment_errors = Event.objects(
-            event_type='payment_error',
-            created_at__gte=last_hour
-        ).count()
-
+        payment_errors = Event.objects(event_type='payment_error', created_at__gte=last_hour).count()
         if payment_errors > 0:
             alerts.append({
                 'type': 'payment_errors',
@@ -866,35 +832,17 @@ class AlertsView(APIView):
                 'timestamp': now.isoformat(),
             })
 
-        # ========================================================
-        # REGLA 4: Carritos sin checkout en las últimas 6 horas
-        # ========================================================
-        # Objetivo: Detectar si hay un problema en el flujo de compra (ej. botón no funciona).
-        # Cálculo: Sesiones con 'add_to_cart' pero sin 'begin_checkout' en 6h.
-        # Se activa si: hay 5 o más carritos abandonados sin iniciar checkout.
+        # Regla 4: Carritos abandonados
         last_6h = now - timedelta(hours=6)
-
-        # Sesiones que añadieron al carrito
-        add_to_cart_6h = Event.objects(
-            event_type='add_to_cart',
-            created_at__gte=last_6h
-        )
+        add_to_cart_6h = Event.objects(event_type='add_to_cart', created_at__gte=last_6h)
         cart_sessions = set()
         for ev in add_to_cart_6h:
             cart_sessions.add(ev.session_id)
-
-        # Sesiones que iniciaron checkout
-        begin_checkout_6h = Event.objects(
-            event_type='begin_checkout',
-            created_at__gte=last_6h
-        )
+        begin_checkout_6h = Event.objects(event_type='begin_checkout', created_at__gte=last_6h)
         checkout_sessions_6h = set()
         for ev in begin_checkout_6h:
             checkout_sessions_6h.add(ev.session_id)
-
-        # Carritos que no iniciaron checkout
         carts_without_checkout = len(cart_sessions - checkout_sessions_6h)
-
         if carts_without_checkout >= 5:
             alerts.append({
                 'type': 'carts_abandoned',
@@ -903,13 +851,7 @@ class AlertsView(APIView):
                 'timestamp': now.isoformat(),
             })
 
-        # ========================================================
-        # REGLA 5 (EXTRA): Sesiones con muchos eventos pero sin compra
-        # ========================================================
-        # Objetivo: Detectar usuarios atascados (ej. refrescando mucho la página)
-        # que podrían indicar un error en la UI o un ataque de bots.
-        # Cálculo: Sesiones con >15 eventos totales en 24h y 0 compras.
-        # Se activa si: hay al menos 1 sesión en ese estado.
+        # Regla 5: Sesiones atascadas
         pipeline_sessions = [
             {"$match": {"created_at": {"$gte": last_24h, "$lte": now}}},
             {"$group": {
@@ -922,7 +864,6 @@ class AlertsView(APIView):
         ]
         stuck = list(Event.objects.aggregate(*pipeline_sessions))
         stuck_count = stuck[0]['stuck_sessions'] if stuck else 0
-
         if stuck_count > 0:
             alerts.append({
                 'type': 'stuck_sessions',
@@ -931,9 +872,6 @@ class AlertsView(APIView):
                 'timestamp': now.isoformat(),
             })
 
-        # ========================================================
-        # Si no se generó ninguna alerta, informamos que todo está bien
-        # ========================================================
         if not alerts:
             alerts.append({
                 'type': 'all_clear',

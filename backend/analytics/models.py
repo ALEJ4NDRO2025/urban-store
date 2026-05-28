@@ -13,6 +13,7 @@ class Event(Document):
     created_at = DateTimeField(default=datetime.utcnow)
     # 🔒 CLAVE DE IDEMPOTENCIA para evitar duplicados
     idempotency_key = StringField(required=True, unique=True, sparse=True)
+    source = StringField() #NUEVO: FUENTE DE TRAFICO (DIRECT,GOOGLE,INSTAGRAM. ETC)
 
     meta = {
         'collection': 'analytics_events',
