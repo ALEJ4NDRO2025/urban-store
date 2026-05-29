@@ -24,11 +24,9 @@ export default function ProductPage() {
   const [isHovered, setIsHovered] = useState(false);
 
   const viewTracked = useRef(false);
-
-  // Cantidad actual de este producto en el carrito
   const [cartQuantity, setCartQuantity] = useState(0);
 
-  // Sincronizar la cantidad cuando cambian los items del carrito o la selección
+  // Sincronizar cantidad del carrito
   useEffect(() => {
     if (!product) return;
     const existingItem = cartItems.find(
@@ -40,9 +38,7 @@ export default function ProductPage() {
     setCartQuantity(existingItem ? existingItem.quantity : 0);
   }, [cartItems, product, selectedSize, selectedColor]);
 
-  // ============================================================
-  // 1. Cargar producto y registrar vista UNA SOLA VEZ
-  // ============================================================
+  // Cargar producto y registrar vista
   useEffect(() => {
     const fetchProduct = async () => {
       try {
@@ -51,7 +47,9 @@ export default function ProductPage() {
         const data = await res.json();
         setProduct(data);
         if (data.sizes?.length > 0) setSelectedSize(data.sizes[0]);
+        else setSelectedSize(null); // No hay tallas → no se requiere
         if (data.colors?.length > 0) setSelectedColor(data.colors[0]);
+        else setSelectedColor(null); // No hay colores → no se requiere
 
         if (!viewTracked.current) {
           viewTracked.current = true;
@@ -75,34 +73,44 @@ export default function ProductPage() {
   }, [slug]);
 
   // ============================================================
-  // 2. Acciones del carrito
+  // Acciones del carrito
   // ============================================================
   const handleIncrease = async () => {
-    if (!product || !selectedSize || !selectedColor) return;
+    if (!product) return;
     const token = localStorage.getItem('access');
     if (!token) {
       router.push('/login');
       return;
     }
 
+    // Validación: solo exigir talla/color si el producto los tiene
+    const sizeRequired = product.sizes?.length > 0;
+    const colorRequired = product.colors?.length > 0;
+    if (sizeRequired && !selectedSize) {
+      toast.error('Seleccioná una talla');
+      return;
+    }
+    if (colorRequired && !selectedColor) {
+      toast.error('Seleccioná un color');
+      return;
+    }
+
     if (cartQuantity === 0) {
-      // Agregar nuevo producto
       await addItem({
         product_slug: product.slug,
         product_name: product.name,
         quantity: 1,
-        selected_size: selectedSize,
-        selected_color: selectedColor,
+        selected_size: selectedSize || '',
+        selected_color: selectedColor || '',
         price_at_time: parseFloat(product.price),
         image: product.images?.[0] || '',
       });
       toast.success('Producto agregado al carrito');
     } else {
-      // Aumentar cantidad existente
       await updateItemQuantity(
         product.slug,
-        selectedSize,
-        selectedColor,
+        selectedSize || '',
+        selectedColor || '',
         cartQuantity + 1
       );
       toast.success('Cantidad actualizada');
@@ -121,19 +129,17 @@ export default function ProductPage() {
   };
 
   const handleDecrease = async () => {
-    if (!product || !selectedSize || !selectedColor) return;
+    if (!product) return;
     if (cartQuantity <= 0) return;
 
     if (cartQuantity === 1) {
-      // Eliminar del carrito
-      await removeItem(product.slug, selectedSize, selectedColor);
+      await removeItem(product.slug, selectedSize || '', selectedColor || '');
       toast.error('Producto eliminado del carrito');
     } else {
-      // Disminuir cantidad
       await updateItemQuantity(
         product.slug,
-        selectedSize,
-        selectedColor,
+        selectedSize || '',
+        selectedColor || '',
         cartQuantity - 1
       );
       toast.success('Cantidad actualizada');
@@ -174,6 +180,16 @@ export default function ProductPage() {
       </div>
     );
   }
+
+  // Determinar disponibilidad
+  const price = parseFloat(product.price) || 0;
+  const stock = product.stock || 0;
+  const hasSizes = product.sizes?.length > 0;
+  const hasColors = product.colors?.length > 0;
+  const isSizeMissing = hasSizes && !selectedSize;
+  const isColorMissing = hasColors && !selectedColor;
+  const isOutOfStock = stock === 0;
+  const isAvailable = !isSizeMissing && !isColorMissing && !isOutOfStock;
 
   return (
     <div style={{
@@ -320,7 +336,7 @@ export default function ProductPage() {
             {/* Precio */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
               <span style={{ fontSize: 'clamp(28px, 5vw, 36px)', fontWeight: '800', color: c.primary }}>
-                ${parseFloat(product.price)?.toLocaleString('es-CO')}
+                ${price.toLocaleString('es-CO')}
               </span>
               <span style={{ color: c.textWeak, fontSize: '14px' }}>COP</span>
             </div>
@@ -331,7 +347,7 @@ export default function ProductPage() {
               alignItems: 'center',
               gap: '8px',
               padding: '8px 16px',
-              background: product.stock > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              background: stock > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
               borderRadius: '12px',
               width: 'fit-content',
             }}>
@@ -339,11 +355,11 @@ export default function ProductPage() {
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: product.stock > 0 ? c.success : c.error,
-                boxShadow: `0 0 6px ${product.stock > 0 ? c.success : c.error}`,
+                backgroundColor: stock > 0 ? c.success : c.error,
+                boxShadow: `0 0 6px ${stock > 0 ? c.success : c.error}`,
               }} />
-              <span style={{ fontSize: '13px', fontWeight: '600', color: product.stock > 0 ? c.success : c.error }}>
-                {product.stock > 0 ? `${product.stock} unidades disponibles` : 'Agotado'}
+              <span style={{ fontSize: '13px', fontWeight: '600', color: stock > 0 ? c.success : c.error }}>
+                {stock > 0 ? `${stock} unidades disponibles` : 'Agotado'}
               </span>
             </div>
 
@@ -355,7 +371,7 @@ export default function ProductPage() {
             )}
 
             {/* Tallas */}
-            {product.sizes?.length > 0 && (
+            {hasSizes && (
               <div>
                 <p style={{ color: c.textSub, fontSize: '13px', marginBottom: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '16px' }}>📏</span> Talla
@@ -387,7 +403,7 @@ export default function ProductPage() {
             )}
 
             {/* Colores */}
-            {product.colors?.length > 0 && (
+            {hasColors && (
               <div>
                 <p style={{ color: c.textSub, fontSize: '13px', marginBottom: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '16px' }}>🎨</span> Color
@@ -419,12 +435,18 @@ export default function ProductPage() {
               </div>
             )}
 
-            {/* Advertencia de selección */}
-            {!selectedSize && product.sizes?.length > 0 && (
-              <p style={{ color: c.warning, fontSize: '13px', margin: 0 }}>⚠️ Selecciona una talla para continuar</p>
+            {/* Advertencias */}
+            {isSizeMissing && (
+              <p style={{ color: c.warning, fontSize: '13px', margin: 0 }}>⚠️ Seleccioná una talla para continuar</p>
+            )}
+            {isColorMissing && (
+              <p style={{ color: c.warning, fontSize: '13px', margin: 0 }}>⚠️ Seleccioná un color para continuar</p>
+            )}
+            {isOutOfStock && (
+              <p style={{ color: c.error, fontSize: '13px', margin: 0 }}>🚫 Producto agotado temporalmente</p>
             )}
 
-            {/* ========== CONTROLES DE CANTIDAD (MERCADO LIBRE STYLE) ========== */}
+            {/* ========== CONTROLES DE CANTIDAD ========== */}
             <div style={{ marginTop: '8px' }}>
               {cartQuantity > 0 ? (
                 <div style={{
@@ -466,7 +488,7 @@ export default function ProductPage() {
                   </span>
                   <button
                     onClick={handleIncrease}
-                    disabled={product.stock === 0 || cartQuantity >= product.stock}
+                    disabled={!isAvailable || cartQuantity >= stock}
                     style={{
                       width: '36px',
                       height: '36px',
@@ -490,20 +512,20 @@ export default function ProductPage() {
               ) : (
                 <button
                   onClick={handleIncrease}
-                  disabled={!selectedSize || product.stock === 0}
+                  disabled={!isAvailable}
                   style={{
                     width: '100%',
                     padding: '16px 32px',
-                    backgroundColor: (!selectedSize || product.stock === 0) ? 'transparent' : c.primary,
-                    color: (!selectedSize || product.stock === 0) ? c.textWeak : '#000',
-                    border: `1px solid ${(!selectedSize || product.stock === 0) ? c.border : c.primary}`,
+                    backgroundColor: isAvailable ? c.primary : 'transparent',
+                    color: isAvailable ? '#000' : c.textWeak,
+                    border: `1px solid ${isAvailable ? c.primary : c.border}`,
                     borderRadius: '40px',
                     fontWeight: '700',
                     fontSize: '16px',
-                    cursor: (!selectedSize || product.stock === 0) ? 'not-allowed' : 'pointer',
-                    opacity: (!selectedSize || product.stock === 0) ? 0.5 : 1,
+                    cursor: isAvailable ? 'pointer' : 'not-allowed',
+                    opacity: isAvailable ? 1 : 0.5,
                     transition: 'all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1)',
-                    boxShadow: (!selectedSize || product.stock === 0) ? 'none' : '0 8px 20px rgba(184, 134, 11, 0.3)',
+                    boxShadow: isAvailable ? '0 8px 20px rgba(184, 134, 11, 0.3)' : 'none',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -516,7 +538,7 @@ export default function ProductPage() {
               )}
             </div>
 
-            {/* Botón de ver carrito (si hay algo) */}
+            {/* Botón de ver carrito */}
             {cartQuantity > 0 && (
               <button
                 onClick={() => router.push('/carrito')}

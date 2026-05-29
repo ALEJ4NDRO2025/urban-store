@@ -21,29 +21,28 @@ class ProductSerializer(serializers.Serializer):
     is_active   = serializers.BooleanField(default=True)
 
     def validate_slug(self, value):
-        # Verifica que el slug no exista ya en MongoDB
+        """
+        Verifica que el slug no exista ya en MongoDB.
+        Si se está editando un producto (self.instance existe) y el slug
+        no cambió, se permite sin comprobar duplicados.
+        """
+        # En actualización, si el slug es el mismo que ya tenía, no validar duplicado
+        if self.instance and self.instance.slug == value:
+            return value
+        # Si hay otro producto con ese slug, lanzar error
         if Product.objects(slug=value).first():
             raise serializers.ValidationError("Ya existe un producto con este slug")
         return value
 
     def create(self, validated_data):
-        # Crea y guarda el producto en MongoDB
+        """Crea y guarda el producto en MongoDB."""
         product = Product(**validated_data)
         product.save()
         return product
 
     def update(self, instance, validated_data):
-        # Actualiza los campos que llegaron
+        """Actualiza los campos que llegaron y guarda el producto existente."""
         for key, value in validated_data.items():
             setattr(instance, key, value)
         instance.save()
         return instance
-
-
-#**¿Para qué sirve en la estructura?**
-
-#products/serializers.py → valida que los datos 
-#del producto estén correctos antes de guardar.
-#slug único → no pueden existir 2 productos iguales
-#create()   → guarda en MongoDB
-#update()   → edita el producto existente

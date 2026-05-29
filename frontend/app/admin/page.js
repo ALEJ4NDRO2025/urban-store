@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import {
@@ -50,6 +50,19 @@ const TRAFFIC_SOURCE_STYLES = {
   social:    { color: '#FF5700', emoji: '🌐', label: 'Otras redes' },
 };
 
+// Paleta para chips de color en el drawer
+const COLOR_PALETTE = {
+  negro: '#1a1a1a', blanco: '#f5f5f5', rojo: '#e53935', azul: '#1e88e5',
+  verde: '#43a047', amarillo: '#fdd835', naranja: '#fb8c00', morado: '#8e24aa',
+  gris: '#757575', rosa: '#e91e63', café: '#6d4c41', beige: '#d7ccc8',
+  navy: '#1a237e', celeste: '#29b6f6', oliva: '#827717', crema: '#fff8e1',
+};
+
+function getColorDot(colorName) {
+  const key = colorName.toLowerCase().trim();
+  return COLOR_PALETTE[key] || null;
+}
+
 function getTrafficStyle(source) {
   return TRAFFIC_SOURCE_STYLES[source] || { color: c.textSub, emoji: '❓', label: source };
 }
@@ -74,18 +87,12 @@ function useCountAnimation(target, duration = 1200, shouldStart = true) {
   return value;
 }
 
-// ============================================================
-// COMPONENTE: ANIMATED NUMBER
-// ============================================================
 function AnimatedNumber({ value, prefix = '', suffix = '', decimals = 0, formatFn }) {
   const animated = useCountAnimation(value, 1200, true);
   const display = formatFn ? formatFn(animated) : (decimals > 0 ? animated.toFixed(decimals) : animated.toLocaleString());
   return <span>{prefix}{display}{suffix}</span>;
 }
 
-// ============================================================
-// COMPONENTE: STATUS DOT
-// ============================================================
 function StatusDot({ value, thresholds, reverseColors = false }) {
   let color = '#0F9D58';
   const [low, mid] = thresholds;
@@ -103,9 +110,6 @@ function StatusDot({ value, thresholds, reverseColors = false }) {
   );
 }
 
-// ============================================================
-// COMPONENTE: MINI SPARKLINE
-// ============================================================
 function Sparkline({ data = [], color = '#B8860B', width = 80, height = 32 }) {
   if (!data || data.length < 2) return null;
   const vals = data.map(d => (typeof d === 'object' ? (d.count || d.value || 0) : d));
@@ -124,29 +128,21 @@ function Sparkline({ data = [], color = '#B8860B', width = 80, height = 32 }) {
   );
 }
 
-// ============================================================
-// COMPONENTE: KPI CARD
-// ============================================================
 function KPICard({ label, value, prefix = '', suffix = '', color, icon, sparkData, sparkColor, statusThresholds, reverseStatus, formatFn, gradient }) {
   return (
     <div style={{
       background: gradient || 'rgba(26,26,26,0.6)',
       backdropFilter: 'blur(16px)',
-      borderRadius: 20,
-      padding: '22px 24px',
+      borderRadius: 20, padding: '22px 24px',
       border: '1px solid rgba(255,255,255,0.07)',
       boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 10,
-      position: 'relative',
-      overflow: 'hidden',
+      display: 'flex', flexDirection: 'column', gap: 10,
+      position: 'relative', overflow: 'hidden',
       transition: 'transform 0.2s, box-shadow 0.2s',
     }}
     onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(0,0,0,0.5)'; }}
     onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.4)'; }}
     >
-      {/* Glow accent */}
       <div style={{ position: 'absolute', top: 0, right: 0, width: 80, height: 80, background: `radial-gradient(circle at top right, ${color}22, transparent 70%)`, pointerEvents: 'none' }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -165,9 +161,6 @@ function KPICard({ label, value, prefix = '', suffix = '', color, icon, sparkDat
   );
 }
 
-// ============================================================
-// COMPONENTE: GAUGE CHART
-// ============================================================
 function GaugeChart({ value = 0, title = 'Tasa de Conversión', max = 100 }) {
   const percentage = Math.min(value, max);
   const radius = 72, strokeWidth = 11;
@@ -202,26 +195,14 @@ function GaugeChart({ value = 0, title = 'Tasa de Conversión', max = 100 }) {
   );
 }
 
-// ============================================================
-// COMPONENTE: TRAFFIC SOURCE CARD
-// ============================================================
 function TrafficSourceCard({ source, sessions, maxSessions, rank }) {
   const style = getTrafficStyle(source);
   const pct = maxSessions > 0 ? (sessions / maxSessions) * 100 : 0;
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px',
-      background: 'rgba(255,255,255,0.03)', borderRadius: 14,
-      border: '1px solid rgba(255,255,255,0.06)',
-      transition: 'background 0.2s, transform 0.2s',
-      animation: `fadeInUp 0.4s ease-out ${rank * 0.07}s both`,
-    }}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)', transition: 'background 0.2s, transform 0.2s', animation: `fadeInUp 0.4s ease-out ${rank * 0.07}s both` }}
     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.transform = 'translateX(4px)'; }}
-    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.transform = 'translateX(0)'; }}
-    >
-      <div style={{ width: 40, height: 40, borderRadius: 12, background: `${style.color}22`, border: `1px solid ${style.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
-        {style.emoji}
-      </div>
+    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.transform = 'translateX(0)'; }}>
+      <div style={{ width: 40, height: 40, borderRadius: 12, background: `${style.color}22`, border: `1px solid ${style.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{style.emoji}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>{style.label}</span>
@@ -236,9 +217,6 @@ function TrafficSourceCard({ source, sessions, maxSessions, rank }) {
   );
 }
 
-// ============================================================
-// COMPONENTE: CONVERSION FUNNEL
-// ============================================================
 function ConversionFunnel({ funnel }) {
   if (!funnel || funnel.length === 0) return <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: 40 }}>Sin datos de embudo</p>;
   const maxCount = funnel[0]?.count || 1;
@@ -258,22 +236,12 @@ function ConversionFunnel({ funnel }) {
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', flex: 1 }}>{stepLabels[step.step] || step.step}</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: col, fontFamily: 'monospace' }}>{step.count.toLocaleString()}</span>
             </div>
-            <div style={{ height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.05)', overflow: 'hidden', position: 'relative' }}>
-              <div style={{
-                height: '100%', width: `${pct}%`,
-                background: `linear-gradient(90deg, ${col}66, ${col})`,
-                borderRadius: 8,
-                transition: 'width 1.2s cubic-bezier(0.4,0,0.2,1)',
-                display: 'flex', alignItems: 'center', paddingLeft: 10,
-              }}>
+            <div style={{ height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${col}66, ${col})`, borderRadius: 8, transition: 'width 1.2s cubic-bezier(0.4,0,0.2,1)', display: 'flex', alignItems: 'center', paddingLeft: 10 }}>
                 <span style={{ fontSize: 10, fontWeight: 600, color: '#fff', opacity: 0.8 }}>{pct.toFixed(1)}%</span>
               </div>
             </div>
-            {dropRate && (
-              <div style={{ textAlign: 'right', fontSize: 10, color: 'rgba(255,100,100,0.6)', marginTop: 2 }}>
-                ↓ {dropRate}% drop
-              </div>
-            )}
+            {dropRate && <div style={{ textAlign: 'right', fontSize: 10, color: 'rgba(255,100,100,0.6)', marginTop: 2 }}>↓ {dropRate}% drop</div>}
           </div>
         );
       })}
@@ -281,39 +249,24 @@ function ConversionFunnel({ funnel }) {
   );
 }
 
-// ============================================================
-// COMPONENTE: ALERT ITEM
-// ============================================================
 function AlertItem({ alert, index }) {
   const colors = {
-    critical: { bg: 'rgba(219,68,55,0.12)', border: '#DB4437', text: '#ff7b6e' },
-    warning:  { bg: 'rgba(244,180,0,0.10)', border: '#F4B400', text: '#ffd740' },
-    info:     { bg: 'rgba(66,133,244,0.10)', border: '#4285F4', text: '#82b1ff' },
+    critical: { bg: 'rgba(219,68,55,0.12)', border: '#DB4437' },
+    warning:  { bg: 'rgba(244,180,0,0.10)', border: '#F4B400' },
+    info:     { bg: 'rgba(66,133,244,0.10)', border: '#4285F4' },
   };
   const s = colors[alert.severity] || colors.info;
   return (
-    <div style={{
-      display: 'flex', alignItems: 'flex-start', gap: 12,
-      padding: '12px 16px', borderRadius: 12,
-      background: s.bg, borderLeft: `3px solid ${s.border}`,
-      animation: `slideInRight 0.4s ease-out ${index * 0.08}s both`,
-    }}>
-      <span style={{ fontSize: 16, marginTop: 1 }}>
-        {alert.severity === 'critical' ? '🚨' : alert.severity === 'warning' ? '⚠️' : 'ℹ️'}
-      </span>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px', borderRadius: 12, background: s.bg, borderLeft: `3px solid ${s.border}`, animation: `slideInRight 0.4s ease-out ${index * 0.08}s both` }}>
+      <span style={{ fontSize: 16, marginTop: 1 }}>{alert.severity === 'critical' ? '🚨' : alert.severity === 'warning' ? '⚠️' : 'ℹ️'}</span>
       <div style={{ flex: 1 }}>
         <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>{alert.message}</span>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>
-          {new Date(alert.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{new Date(alert.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</div>
       </div>
     </div>
   );
 }
 
-// ============================================================
-// COMPONENTE: RFM BADGE
-// ============================================================
 function RFMBadge({ segment }) {
   const styles = {
     VIP:         { bg: 'rgba(15,157,88,0.15)', color: '#0F9D58', border: 'rgba(15,157,88,0.3)', icon: '💎' },
@@ -323,15 +276,12 @@ function RFMBadge({ segment }) {
   };
   const s = styles[segment] || { bg: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', border: 'rgba(255,255,255,0.15)', icon: '•' };
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', borderRadius: 20, background: s.bg, color: s.color, border: `1px solid ${s.border}`, fontSize: 12, fontWeight: 700, letterSpacing: '0.02em' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', borderRadius: 20, background: s.bg, color: s.color, border: `1px solid ${s.border}`, fontSize: 12, fontWeight: 700 }}>
       {s.icon} {segment}
     </span>
   );
 }
 
-// ============================================================
-// COMPONENTE: SECTION HEADER
-// ============================================================
 function SectionHeader({ icon, title, subtitle }) {
   return (
     <div style={{ marginBottom: 20 }}>
@@ -344,14 +294,81 @@ function SectionHeader({ icon, title, subtitle }) {
   );
 }
 
+function FieldError({ errors }) {
+  if (!errors || errors.length === 0) return null;
+  return <span style={{ fontSize: 12, color: '#DB4437', marginTop: 4, display: 'block' }}>{Array.isArray(errors) ? errors[0] : errors}</span>;
+}
+
+// ============================================================
+// COMPONENTE: TAG INPUT (tallas / colores) — sin colisión con `c`
+// ============================================================
+function TagInput({ label, placeholder, values, onChange, colorMode = false }) {
+  const [inputVal, setInputVal] = useState('');
+
+  // Confirmar tag al presionar coma, Enter o Tab
+  const handleKeyDown = (e) => {
+    if (e.key === ',' || e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const tag = inputVal.trim().replace(/,/g, '');
+      if (tag && !values.includes(tag)) {
+        onChange([...values, tag]);
+      }
+      setInputVal('');
+    } else if (e.key === 'Backspace' && inputVal === '' && values.length > 0) {
+      onChange(values.slice(0, -1));
+    }
+  };
+
+  // También procesar si pegan texto con comas
+  const handleChange = (e) => {
+    const raw = e.target.value;
+    if (raw.includes(',')) {
+      const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+      const newTags = parts.slice(0, -1).filter(t => !values.includes(t));
+      if (newTags.length > 0) onChange([...values, ...newTags]);
+      setInputVal(parts[parts.length - 1] || '');
+    } else {
+      setInputVal(raw);
+    }
+  };
+
+  const removeTag = (tag) => onChange(values.filter(v => v !== tag));
+
+  return (
+    <div>
+      <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, display: 'block' }}>{label}</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, minHeight: 44, alignItems: 'center', cursor: 'text' }}
+        onClick={e => e.currentTarget.querySelector('input')?.focus()}>
+        {values.map((tag) => {
+          const dot = colorMode ? getColorDot(tag) : null;
+          return (
+            <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(184,134,11,0.18)', color: c.primary, padding: '3px 10px 3px 8px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: '1px solid rgba(184,134,11,0.3)' }}>
+              {dot && <span style={{ width: 10, height: 10, borderRadius: '50%', background: dot, border: '1px solid rgba(255,255,255,0.3)', flexShrink: 0 }} />}
+              {tag}
+              <button onClick={() => removeTag(tag)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1, marginLeft: 2, display: 'flex', alignItems: 'center' }}>×</button>
+            </span>
+          );
+        })}
+        <input
+          value={inputVal}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder={values.length === 0 ? placeholder : ''}
+          style={{ flex: 1, minWidth: 80, background: 'none', border: 'none', outline: 'none', color: 'rgba(255,255,255,0.8)', fontSize: 13 }}
+        />
+      </div>
+      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 4, display: 'block' }}>Escribe y presiona coma o Enter para agregar</span>
+    </div>
+  );
+}
+
 // ============================================================
 // ESTILOS COMPARTIDOS
 // ============================================================
 const glassCard = {
   background: 'rgba(18,18,18,0.65)',
   backdropFilter: 'blur(20px)',
-  borderRadius: 20,
-  padding: '24px',
+  borderRadius: 20, padding: '24px',
   border: '1px solid rgba(255,255,255,0.07)',
   boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
 };
@@ -365,7 +382,14 @@ const chipStyle = (isActive) => ({
   border: isActive ? 'none' : '1px solid rgba(255,255,255,0.1)',
   cursor: 'pointer', fontWeight: isActive ? 700 : 500,
   transition: 'all 0.2s', fontSize: 13,
-  letterSpacing: '0.01em',
+});
+
+const inputStyle = (hasError = false) => ({
+  padding: '10px 14px',
+  background: 'rgba(255,255,255,0.05)',
+  border: `1px solid ${hasError ? '#DB4437' : 'rgba(255,255,255,0.1)'}`,
+  borderRadius: 10, color: 'rgba(255,255,255,0.8)',
+  fontSize: 13, outline: 'none', width: '100%',
 });
 
 // ============================================================
@@ -374,7 +398,6 @@ const chipStyle = (isActive) => ({
 export default function AdminPage() {
   const router = useRouter();
 
-  // --- Pestañas ---
   const [activeTab, setActiveTab] = useState('orders');
 
   // --- Pedidos ---
@@ -398,6 +421,22 @@ export default function AdminPage() {
   const [analyticsMode, setAnalyticsMode] = useState('total');
   const [trafficData, setTrafficData] = useState([]);
   const [timePeriod, setTimePeriod] = useState('7');
+
+  // --- Productos ---
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [productSortBy, setProductSortBy] = useState('created_at');
+  const [productSortOrder, setProductSortOrder] = useState('desc');
+  const [productPage, setProductPage] = useState(1);
+  const [showProductDrawer, setShowProductDrawer] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [productForm, setProductForm] = useState({
+    name: '', slug: '', description: '', price: '', category: '', stock: '',
+    sizes: [], colors: [], images: [],
+  });
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
 
   // ============================================================
   // EFECTOS
@@ -427,7 +466,7 @@ export default function AdminPage() {
     fetch(`${API_URL}/api/analytics/dashboard-stats/?mode=${analyticsMode}&start=${start}&end=${end}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => { setStats(data); setTrafficData(data.traffic_sources || []); setLoadingAnalytics(false); })
-      .catch(err => { console.error(err); setLoadingAnalytics(false); });
+      .catch(() => setLoadingAnalytics(false));
   }, [activeTab, analyticsMode, timePeriod]);
 
   useEffect(() => {
@@ -435,9 +474,7 @@ export default function AdminPage() {
     const token = localStorage.getItem('access');
     if (!token) return;
     fetch(`${API_URL}/api/analytics/funnel/`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setFunnel(data.funnel))
-      .catch(err => console.error(err));
+      .then(res => res.json()).then(data => setFunnel(data.funnel)).catch(() => {});
   }, [activeTab]);
 
   useEffect(() => {
@@ -445,9 +482,7 @@ export default function AdminPage() {
     const token = localStorage.getItem('access');
     if (!token) return;
     fetch(`${API_URL}/api/orders/all/?status=paid&limit=5`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setRecentPurchases(Array.isArray(data) ? data.slice(0, 5) : []))
-      .catch(() => setRecentPurchases([]));
+      .then(res => res.json()).then(data => setRecentPurchases(Array.isArray(data) ? data.slice(0, 5) : [])).catch(() => setRecentPurchases([]));
   }, [activeTab]);
 
   useEffect(() => {
@@ -455,9 +490,7 @@ export default function AdminPage() {
     const token = localStorage.getItem('access');
     if (!token) return;
     fetch(`${API_URL}/api/analytics/alerts/`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setAlerts(data.alerts || []))
-      .catch(() => setAlerts([]));
+      .then(res => res.json()).then(data => setAlerts(data.alerts || [])).catch(() => setAlerts([]));
   }, [activeTab]);
 
   useEffect(() => {
@@ -465,13 +498,22 @@ export default function AdminPage() {
     const token = localStorage.getItem('access');
     if (!token) return;
     fetch(`${API_URL}/api/analytics/rfm/`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json()).then(data => setRfmData(data.rfm || [])).catch(() => setRfmData([]));
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'products') return;
+    const token = localStorage.getItem('access');
+    if (!token) return;
+    setLoadingProducts(true);
+    fetch(`${API_URL}/api/products/`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
-      .then(data => setRfmData(data.rfm || []))
-      .catch(() => setRfmData([]));
+      .then(data => { setProducts(Array.isArray(data) ? data : []); setLoadingProducts(false); })
+      .catch(() => setLoadingProducts(false));
   }, [activeTab]);
 
   // ============================================================
-  // PEDIDOS: HANDLERS
+  // PEDIDOS
   // ============================================================
   const handleStatusChange = async (orderId, newStatus) => {
     const token = localStorage.getItem('access');
@@ -486,9 +528,8 @@ export default function AdminPage() {
       const updatedOrder = await res.json();
       setOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
       toast.success(`Estado actualizado a "${newStatus}"`);
-    } catch {
-      toast.error('No se pudo actualizar el estado');
-    } finally { setUpdatingId(null); }
+    } catch { toast.error('No se pudo actualizar el estado'); }
+    finally { setUpdatingId(null); }
   };
 
   const filteredAndSortedOrders = useMemo(() => {
@@ -535,11 +576,108 @@ export default function AdminPage() {
   };
 
   // ============================================================
-  // RENDER: PANEL DE PEDIDOS
+  // PRODUCTOS
+  // ============================================================
+  const filteredAndSortedProducts = useMemo(() => {
+    let list = [...products];
+    if (productSearch) {
+      const term = productSearch.toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(term) || p.slug.toLowerCase().includes(term) || (p.category || '').toLowerCase().includes(term));
+    }
+    list.sort((a, b) => {
+      let aVal, bVal;
+      if (productSortBy === 'name') { aVal = a.name; bVal = b.name; }
+      else if (productSortBy === 'price') { aVal = parseFloat(a.price); bVal = parseFloat(b.price); }
+      else if (productSortBy === 'stock') { aVal = a.stock; bVal = b.stock; }
+      else { aVal = a.created_at || ''; bVal = b.created_at || ''; }
+      return productSortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+    });
+    return list;
+  }, [products, productSearch, productSortBy, productSortOrder]);
+
+  const totalProductPages = Math.ceil(filteredAndSortedProducts.length / ITEMS_PER_PAGE);
+  const paginatedProducts = useMemo(() => {
+    const start = (productPage - 1) * ITEMS_PER_PAGE;
+    return filteredAndSortedProducts.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredAndSortedProducts, productPage]);
+
+  useEffect(() => { setProductPage(1); }, [productSearch, productSortBy, productSortOrder]);
+
+  const openCreateDrawer = () => {
+    setEditingProduct(null);
+    setProductForm({ name: '', slug: '', description: '', price: '', category: '', stock: '', sizes: [], colors: [], images: [] });
+    setFormErrors({});
+    setShowProductDrawer(true);
+  };
+
+  const openEditDrawer = (product) => {
+    setEditingProduct(product);
+    setProductForm({
+      name: product.name || '', slug: product.slug || '', description: product.description || '',
+      price: product.price || '', category: product.category || '', stock: product.stock || '',
+      sizes: product.sizes || [], colors: product.colors || [], images: product.images || [],
+    });
+    setFormErrors({});
+    setShowProductDrawer(true);
+  };
+
+  const reloadProducts = async () => {
+    const token = localStorage.getItem('access');
+    const updated = await fetch(`${API_URL}/api/products/`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
+    setProducts(Array.isArray(updated) ? updated : []);
+  };
+
+  const handleSaveProduct = async () => {
+    const token = localStorage.getItem('access');
+    setSavingProduct(true);
+    setFormErrors({});
+    const payload = { ...productForm, price: parseFloat(productForm.price) || 0, stock: parseInt(productForm.stock) || 0 };
+    const url = editingProduct ? `${API_URL}/api/products/${editingProduct.slug}/` : `${API_URL}/api/products/`;
+    const method = editingProduct ? 'PUT' : 'POST';
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) { const err = await res.json(); setFormErrors(err); throw new Error('Corregí los campos indicados'); }
+      toast.success(editingProduct ? 'Producto actualizado' : 'Producto creado');
+      setShowProductDrawer(false);
+      await reloadProducts();
+    } catch (err) { toast.error(err.message || 'No se pudo guardar'); }
+    finally { setSavingProduct(false); }
+  };
+
+  const handleDeleteProduct = async (slug) => {
+    if (!confirm('¿Eliminar este producto? Esta acción no se puede deshacer.')) return;
+    const token = localStorage.getItem('access');
+    try {
+      const res = await fetch(`${API_URL}/api/products/${slug}/`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      toast.success('Producto eliminado');
+      setProducts(prev => prev.filter(p => p.slug !== slug));
+    } catch { toast.error('No se pudo eliminar'); }
+  };
+
+  const handleOpenCloudinaryWidget = () => {
+    if (typeof window === 'undefined' || !window.cloudinary) return;
+    window.cloudinary.openUploadWidget(
+      { cloudName: 'dvxjp04xt', uploadPreset: 'urbanstore-products', sources: ['local', 'url', 'camera'], multiple: true, maxFiles: 5, clientAllowedFormats: ['jpg', 'png', 'webp'] },
+      (error, result) => {
+        if (!error && result && result.event === 'success') {
+          setProductForm(prev => ({ ...prev, images: [...prev.images, result.info.secure_url] }));
+        }
+      }
+    );
+  };
+
+  const handleRemoveImage = (index) => setProductForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
+
+  // ============================================================
+  // RENDER: PEDIDOS
   // ============================================================
   const renderOrdersPanel = () => (
     <>
-      {/* KPIs de pedidos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 36 }}>
         <KPICard label="Total Pedidos" value={totalOrders} icon="📋" color="#4285F4" statusThresholds={[1, 10]} gradient="linear-gradient(135deg, rgba(66,133,244,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
         <KPICard label="Ingresos Totales" value={totalRevenue} prefix="$" icon="💰" color="#0F9D58" statusThresholds={[1, 100000]} formatFn={v => v.toLocaleString()} gradient="linear-gradient(135deg, rgba(15,157,88,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
@@ -547,7 +685,6 @@ export default function AdminPage() {
         <KPICard label="Pagados" value={paidOrders} icon="✅" color="#B8860B" statusThresholds={[1, 10]} gradient="linear-gradient(135deg, rgba(184,134,11,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
       </div>
 
-      {/* Filtros */}
       <div style={{ ...glassCard, padding: '18px 22px', marginBottom: 28 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -559,17 +696,13 @@ export default function AdminPage() {
             ))}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <input
-              type="text" placeholder="🔍  Nº orden o email"
-              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 40, color: 'rgba(255,255,255,0.8)', fontSize: 13, minWidth: 220, outline: 'none' }}
-            />
+            <input type="text" placeholder="🔍  Nº orden o email" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 40, color: 'rgba(255,255,255,0.8)', fontSize: 13, minWidth: 220, outline: 'none' }} />
             <button onClick={clearFilters} style={{ padding: '8px 18px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 40, color: 'rgba(255,255,255,0.35)', cursor: 'pointer', fontSize: 13 }}>Limpiar</button>
           </div>
         </div>
       </div>
 
-      {/* Tabla */}
       <div style={{ ...glassCard, padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
@@ -584,12 +717,12 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {paginatedOrders.length === 0 ? (
-                <tr><td colSpan="6" style={{ padding: 48, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>Sin resultados para los filtros aplicados</td></tr>
+                <tr><td colSpan="6" style={{ padding: 48, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>Sin resultados</td></tr>
               ) : (
                 paginatedOrders.map((order, idx) => {
                   const ss = getStatusStyle(order.status);
                   return (
-                    <tr key={order.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s', animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both`, cursor: 'default' }}
+                    <tr key={order.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s', animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both` }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,134,11,0.04)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <td style={{ padding: '14px 20px', fontWeight: 600, color: c.primary, fontSize: 13, fontFamily: 'monospace' }}>{order.order_number}</td>
@@ -608,11 +741,8 @@ export default function AdminPage() {
                         </select>
                       </td>
                       <td style={{ padding: '14px 20px' }}>
-                        <button onClick={() => router.push(`/order-confirmation/${order.id}`)} style={{ padding: '6px 14px', background: 'rgba(184,134,11,0.1)', color: c.primary, border: `1px solid rgba(184,134,11,0.3)`, borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'all 0.15s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,134,11,0.2)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(184,134,11,0.1)'}>
-                          Ver →
-                        </button>
+                        <button onClick={() => router.push(`/order-confirmation/${order.id}`)}
+                          style={{ padding: '6px 14px', background: 'rgba(184,134,11,0.1)', color: c.primary, border: '1px solid rgba(184,134,11,0.3)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Ver →</button>
                       </td>
                     </tr>
                   );
@@ -623,9 +753,9 @@ export default function AdminPage() {
         </div>
         {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 10, padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} style={{ padding: '7px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: 13, opacity: currentPage === 1 ? 0.3 : 1 }}>← Anterior</button>
+            <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} style={{ padding: '7px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', opacity: currentPage === 1 ? 0.3 : 1 }}>← Anterior</button>
             <span style={{ padding: '7px 16px', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>Página {currentPage} de {totalPages}</span>
-            <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} style={{ padding: '7px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: 13, opacity: currentPage === totalPages ? 0.3 : 1 }}>Siguiente →</button>
+            <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} style={{ padding: '7px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', opacity: currentPage === totalPages ? 0.3 : 1 }}>Siguiente →</button>
           </div>
         )}
       </div>
@@ -633,19 +763,19 @@ export default function AdminPage() {
   );
 
   // ============================================================
-  // RENDER: PANEL DE ANALÍTICAS
+  // RENDER: ANALÍTICAS
   // ============================================================
   const renderAnalyticsPanel = () => {
     if (loadingAnalytics) return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 80, gap: 16 }}>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', border: `2px solid rgba(255,255,255,0.08)`, borderTop: `2px solid ${c.primary}`, animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.08)', borderTop: `2px solid ${c.primary}`, animation: 'spin 0.8s linear infinite' }} />
         <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Cargando analíticas...</span>
       </div>
     );
-    if (!stats) return <div style={{ textAlign: 'center', padding: 48, color: '#DB4437', fontSize: 14 }}>Error al cargar estadísticas</div>;
+    if (!stats) return <div style={{ textAlign: 'center', padding: 48, color: '#DB4437' }}>Error al cargar estadísticas</div>;
 
     const totalSales = stats.total_sales || 0;
-    const totalRevenue = stats.total_revenue || 0;
+    const totalRev = stats.total_revenue || 0;
     const averageOrderValue = stats.average_order_value || 0;
     const abandonmentRate = stats.abandonment_rate || 0;
     const conversionRates = stats.conversion_rates || {};
@@ -657,12 +787,10 @@ export default function AdminPage() {
     const errorsTimeline = stats.errors_timeline || [];
     const sessionStats = stats.session_stats || null;
     const retentionMetrics = stats.retention_metrics || null;
-
     const maxTrafficSessions = trafficData.length > 0 ? Math.max(...trafficData.map(d => d.sessions)) : 1;
 
     return (
       <>
-        {/* ── TOOLBAR: PERÍODO + MODO ── */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, padding: '14px 20px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Período</span>
@@ -677,29 +805,20 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* ── ROW 1: KPIs ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18, marginBottom: 28 }}>
           <KPICard label="Ventas Totales" value={totalSales} icon="🛒" color="#4285F4" statusThresholds={[1, 20]} sparkData={salesByDay} sparkColor="#4285F4" gradient="linear-gradient(135deg, rgba(66,133,244,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
-          <KPICard label="Ingresos" value={totalRevenue} prefix="$" icon="💵" color="#0F9D58" statusThresholds={[1, 500000]} sparkData={salesByDay} sparkColor="#0F9D58" formatFn={v => v.toLocaleString()} gradient="linear-gradient(135deg, rgba(15,157,88,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
-          <KPICard label="Ticket Promedio" value={averageOrderValue} prefix="$" icon="🎯" color="#B8860B" statusThresholds={[50000, 150000]} sparkColor="#B8860B" formatFn={v => v.toLocaleString()} gradient="linear-gradient(135deg, rgba(184,134,11,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+          <KPICard label="Ingresos" value={totalRev} prefix="$" icon="💵" color="#0F9D58" statusThresholds={[1, 500000]} sparkData={salesByDay} sparkColor="#0F9D58" formatFn={v => v.toLocaleString()} gradient="linear-gradient(135deg, rgba(15,157,88,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+          <KPICard label="Ticket Promedio" value={averageOrderValue} prefix="$" icon="🎯" color="#B8860B" statusThresholds={[50000, 150000]} formatFn={v => v.toLocaleString()} gradient="linear-gradient(135deg, rgba(184,134,11,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
           <KPICard label="Tasa Abandono" value={abandonmentRate} suffix="%" icon="🚪" color="#DB4437" statusThresholds={[30, 60]} reverseStatus gradient="linear-gradient(135deg, rgba(219,68,55,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
         </div>
 
-        {/* ── ROW 2: GRID 2 COLUMNAS ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20, marginBottom: 20, alignItems: 'start' }}>
-          {/* COLUMNA IZQUIERDA */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-            {/* Retención */}
             {retentionMetrics && (
               <div style={glassCard}>
                 <SectionHeader icon="🔄" title="Retención de clientes" subtitle="Comportamiento de recompra" />
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                  {[
-                    { label: 'Tasa de Recompra', value: `${retentionMetrics.repurchase_rate}%`, color: '#0F9D58' },
-                    { label: 'Recurrentes', value: retentionMetrics.recurrent_customers, color: '#4285F4' },
-                    { label: 'Compradores únicos', value: retentionMetrics.total_unique_buyers, color: '#B8860B' },
-                  ].map(m => (
+                  {[{ label: 'Tasa de Recompra', value: `${retentionMetrics.repurchase_rate}%`, color: '#0F9D58' }, { label: 'Recurrentes', value: retentionMetrics.recurrent_customers, color: '#4285F4' }, { label: 'Compradores únicos', value: retentionMetrics.total_unique_buyers, color: '#B8860B' }].map(m => (
                     <div key={m.label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '14px 12px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.06)' }}>
                       <div style={{ fontSize: 22, fontWeight: 800, color: m.color, fontFamily: 'monospace' }}>{m.value}</div>
                       <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 4, lineHeight: 1.3 }}>{m.label}</div>
@@ -708,17 +827,11 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
-            {/* Sesiones */}
             {sessionStats && (
               <div style={glassCard}>
                 <SectionHeader icon="📡" title="Estadísticas de sesión" />
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                  {[
-                    { label: 'Sesiones únicas', value: sessionStats.unique_sessions, color: '#4285F4' },
-                    { label: 'Eventos / sesión', value: sessionStats.avg_events_per_session, color: '#FF6D00' },
-                    { label: 'Con compra', value: sessionStats.sessions_with_purchase, color: '#0F9D58' },
-                  ].map(m => (
+                  {[{ label: 'Sesiones únicas', value: sessionStats.unique_sessions, color: '#4285F4' }, { label: 'Eventos / sesión', value: sessionStats.avg_events_per_session, color: '#FF6D00' }, { label: 'Con compra', value: sessionStats.sessions_with_purchase, color: '#0F9D58' }].map(m => (
                     <div key={m.label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '14px 12px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.06)' }}>
                       <div style={{ fontSize: 22, fontWeight: 800, color: m.color, fontFamily: 'monospace' }}>{m.value}</div>
                       <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 4, lineHeight: 1.3 }}>{m.label}</div>
@@ -727,19 +840,11 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
-            {/* Gauge conversión */}
             <GaugeChart value={conversionRates.visit_to_cart || 0} title="Visitante → Carrito" />
-
-            {/* Embudo de pago */}
             {stats.checkout_started_count !== undefined && stats.checkout_started_count !== null && (
               <div style={glassCard}>
-                <SectionHeader icon="⏳" title="Embudo de pago" subtitle="Pasos hasta la compra completada" />
-                <ConversionFunnel funnel={[
-                  { step: 'begin_checkout', count: stats.checkout_started_count ?? 0 },
-                  { step: 'add_to_cart',    count: stats.payment_info_entered_count ?? 0 },
-                  { step: 'purchase',       count: stats.order_completed_count ?? 0 },
-                ].map(s => ({ ...s, step: ['begin_checkout','add_to_cart','purchase'][['begin_checkout','add_to_cart','purchase'].indexOf(s.step)] || s.step }))} />
+                <SectionHeader icon="⏳" title="Embudo de pago" />
+                <ConversionFunnel funnel={[{ step: 'begin_checkout', count: stats.checkout_started_count ?? 0 }, { step: 'add_to_cart', count: stats.payment_info_entered_count ?? 0 }, { step: 'purchase', count: stats.order_completed_count ?? 0 }]} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, padding: '10px 0 0', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
                   <span>Checkout → Pago: <strong style={{ color: '#FF6D00' }}>{stats.conversion_checkout_to_payment ?? 0}%</strong></span>
                   <span>Pago → Compra: <strong style={{ color: '#0F9D58' }}>{stats.conversion_payment_to_order ?? 0}%</strong></span>
@@ -748,10 +853,7 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* COLUMNA DERECHA */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-            {/* Últimas compras */}
             {recentPurchases.length > 0 && (
               <div style={glassCard}>
                 <SectionHeader icon="🛍️" title="Últimas compras" subtitle="Pedidos pagados más recientes" />
@@ -771,11 +873,9 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
-            {/* Fuentes de tráfico */}
             {trafficData && trafficData.length > 0 && (
               <div style={glassCard}>
-                <SectionHeader icon="🌐" title="Fuentes de tráfico" subtitle={`Top ${trafficData.length} canales de adquisición`} />
+                <SectionHeader icon="🌐" title="Fuentes de tráfico" />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {[...trafficData].sort((a, b) => b.sessions - a.sessions).map((s, idx) => (
                     <TrafficSourceCard key={s.source} source={s.source} sessions={s.sessions} maxSessions={maxTrafficSessions} rank={idx} />
@@ -783,25 +883,13 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
-            {/* Distribución de eventos (pastel) */}
             {stats.event_counts && Object.values(stats.event_counts).some(v => v > 0) && (
               <div style={glassCard}>
                 <SectionHeader icon="📊" title="Distribución de eventos" />
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
-                    <Pie
-                      data={Object.entries(stats.event_counts).map(([key, val]) => ({
-                        name: key === 'product_view' ? 'Vistas' : key === 'add_to_cart' ? 'Carrito' : key === 'begin_checkout' ? 'Checkout' : 'Compras',
-                        value: val
-                      })).filter(item => item.value > 0)}
-                      cx="50%" cy="50%" outerRadius={75} innerRadius={40}
-                      dataKey="value" labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {Object.entries(stats.event_counts).map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={ANALYTICS_COLORS.pie[index % ANALYTICS_COLORS.pie.length]} />
-                      ))}
+                    <Pie data={Object.entries(stats.event_counts).map(([key, val]) => ({ name: key === 'product_view' ? 'Vistas' : key === 'add_to_cart' ? 'Carrito' : key === 'begin_checkout' ? 'Checkout' : 'Compras', value: val })).filter(item => item.value > 0)} cx="50%" cy="50%" outerRadius={75} innerRadius={40} dataKey="value" labelLine={false} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                      {Object.entries(stats.event_counts).map((_, index) => (<Cell key={`cell-${index}`} fill={ANALYTICS_COLORS.pie[index % ANALYTICS_COLORS.pie.length]} />))}
                     </Pie>
                     <Tooltip contentStyle={tooltipStyle} />
                   </PieChart>
@@ -811,10 +899,9 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* ── ROW 3: EMBUDO DE CONVERSIÓN (full width) ── */}
         {funnel && funnel.length > 0 && (
           <div style={{ ...glassCard, marginBottom: 20 }}>
-            <SectionHeader icon="🔽" title="Embudo de conversión" subtitle="Sesiones únicas por etapa del journey" />
+            <SectionHeader icon="🔽" title="Embudo de conversión" subtitle="Sesiones únicas por etapa" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 32, alignItems: 'center' }}>
               <ConversionFunnel funnel={funnel} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -824,7 +911,7 @@ export default function AdminPage() {
                   const labels = { page_view: 'Visitas', product_view: 'Vieron', add_to_cart: 'Carrito', begin_checkout: 'Checkout', purchase: 'Compra' };
                   const colors = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2'];
                   return (
-                    <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
                       <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>{labels[step.step]} → {labels[next.step]}</div>
                       <div style={{ fontSize: 26, fontWeight: 800, color: colors[idx], fontFamily: 'monospace' }}>{rate}%</div>
                     </div>
@@ -835,38 +922,30 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── ROW 4: GRÁFICOS DE EVOLUCIÓN (2 columnas) ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20, marginBottom: 20 }}>
           <div style={glassCard}>
-            <SectionHeader icon="📈" title="Evolución de eventos" subtitle="Últimos 7 días" />
+            <SectionHeader icon="📈" title="Evolución de eventos" />
             {eventsTimeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={eventsTimeline}>
                   <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
                   <XAxis dataKey="date" stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
                   <YAxis stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={tooltipStyle} /><Legend wrapperStyle={{ fontSize: 12 }} />
                   <Line type="monotone" dataKey="product_view" stroke={ANALYTICS_COLORS.timeline.product_view} name="Vistas" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="add_to_cart" stroke={ANALYTICS_COLORS.timeline.add_to_cart} name="Carrito" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="begin_checkout" stroke={ANALYTICS_COLORS.timeline.begin_checkout} name="Checkout" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="purchase" stroke={ANALYTICS_COLORS.timeline.purchase} name="Compras" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
-            ) : <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: 40, fontSize: 13 }}>Sin datos disponibles</p>}
+            ) : <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: 40, fontSize: 13 }}>Sin datos</p>}
           </div>
-
           <div style={glassCard}>
             <SectionHeader icon="💹" title="Ventas por día" />
             {salesByDay.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <AreaChart data={salesByDay}>
-                  <defs>
-                    <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4285F4" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#4285F4" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                  <defs><linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4285F4" stopOpacity={0.3} /><stop offset="95%" stopColor="#4285F4" stopOpacity={0} /></linearGradient></defs>
                   <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
                   <XAxis dataKey="date" stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
                   <YAxis stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
@@ -874,69 +953,33 @@ export default function AdminPage() {
                   <Area type="monotone" dataKey="count" stroke="#4285F4" fill="url(#salesGrad)" strokeWidth={2} name="Ventas" />
                 </AreaChart>
               </ResponsiveContainer>
-            ) : <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: 40, fontSize: 13 }}>Sin datos disponibles</p>}
+            ) : <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: 40, fontSize: 13 }}>Sin datos</p>}
           </div>
         </div>
 
-        {/* ── ROW 5: TOP PRODUCTOS ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginBottom: 20 }}>
           <div style={glassCard}>
             <SectionHeader icon="🏆" title="Más vendidos" />
-            {topProducts.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={topProducts} layout="vertical">
-                  <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
-                  <XAxis type="number" stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
-                  <YAxis dataKey="slug" type="category" width={130} stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="count" fill={ANALYTICS_COLORS.bar.sales} name="Unidades" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: 40, fontSize: 13 }}>Sin datos</p>}
+            {topProducts.length > 0 ? (<ResponsiveContainer width="100%" height={260}><BarChart data={topProducts} layout="vertical"><CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" /><XAxis type="number" stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} /><YAxis dataKey="slug" type="category" width={130} stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="count" fill={ANALYTICS_COLORS.bar.sales} name="Unidades" radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>) : <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: 40, fontSize: 13 }}>Sin datos</p>}
           </div>
           <div style={glassCard}>
             <SectionHeader icon="👁️" title="Más vistos" />
-            {topViewed.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={topViewed} layout="vertical">
-                  <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
-                  <XAxis type="number" stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
-                  <YAxis dataKey="slug" type="category" width={130} stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="count" fill={ANALYTICS_COLORS.bar.views} name="Visitas" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: 40, fontSize: 13 }}>Sin datos</p>}
+            {topViewed.length > 0 ? (<ResponsiveContainer width="100%" height={260}><BarChart data={topViewed} layout="vertical"><CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" /><XAxis type="number" stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} /><YAxis dataKey="slug" type="category" width={130} stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="count" fill={ANALYTICS_COLORS.bar.views} name="Visitas" radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>) : <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: 40, fontSize: 13 }}>Sin datos</p>}
           </div>
         </div>
 
-        {/* ── ROW 6: RENDIMIENTO POR PRODUCTO ── */}
         {productPerformance.length > 0 && (
           <div style={{ ...glassCard, marginBottom: 20 }}>
-            <SectionHeader icon="📋" title="Rendimiento por producto" subtitle="Vista consolidada de métricas por ítem" />
+            <SectionHeader icon="📋" title="Rendimiento por producto" />
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                    {['Producto', 'Vistas', 'Carritos', 'Compras', 'Conversión'].map(h => (
-                      <th key={h} style={{ padding: '10px 16px', textAlign: h === 'Producto' ? 'left' : 'center', fontSize: 11, color: 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
+                <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>{['Producto', 'Vistas', 'Carritos', 'Compras', 'Conversión'].map(h => (<th key={h} style={{ padding: '10px 16px', textAlign: h === 'Producto' ? 'left' : 'center', fontSize: 11, color: 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>))}</tr></thead>
                 <tbody>
                   {productPerformance.map((prod, idx) => (
-                    <tr key={prod.slug} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', animation: `fadeInUp 0.3s ease-out ${idx * 0.05}s both`, transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <tr key={prod.slug} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', animation: `fadeInUp 0.3s ease-out ${idx * 0.05}s both` }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <td style={{ padding: '12px 16px', fontWeight: 600, color: c.primary, fontSize: 13 }}>{prod.name || prod.slug}</td>
-                      {[prod.views, prod.add_to_cart, prod.purchases].map((val, i) => (
-                        <td key={i} style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>{val}</td>
-                      ))}
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: prod.conversion_rate >= 5 ? 'rgba(15,157,88,0.15)' : 'rgba(255,255,255,0.06)', color: prod.conversion_rate >= 5 ? '#0F9D58' : 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 700, border: `1px solid ${prod.conversion_rate >= 5 ? 'rgba(15,157,88,0.3)' : 'rgba(255,255,255,0.1)'}` }}>
-                          {prod.conversion_rate >= 5 && <span>✓</span>} {prod.conversion_rate}%
-                        </span>
-                      </td>
+                      {[prod.views, prod.add_to_cart, prod.purchases].map((val, i) => (<td key={i} style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>{val}</td>))}
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: prod.conversion_rate >= 5 ? 'rgba(15,157,88,0.15)' : 'rgba(255,255,255,0.06)', color: prod.conversion_rate >= 5 ? '#0F9D58' : 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 700 }}>{prod.conversion_rate >= 5 && '✓'} {prod.conversion_rate}%</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -945,17 +988,15 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── ROW 7: ERRORES ── */}
         {errorsTimeline.length > 0 && (
           <div style={{ ...glassCard, marginBottom: 20 }}>
-            <SectionHeader icon="⚠️" title="Errores por día" subtitle="Monitoreo de fallos en el flujo de compra" />
+            <SectionHeader icon="⚠️" title="Errores por día" />
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={errorsTimeline}>
                 <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
                 <XAxis dataKey="date" stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
                 <YAxis stroke="rgba(255,255,255,0.2)" tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Tooltip contentStyle={tooltipStyle} /><Legend wrapperStyle={{ fontSize: 12 }} />
                 <Line type="monotone" dataKey="payment_error" stroke={ANALYTICS_COLORS.timeline.error} name="Pago" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="address_error" stroke={ANALYTICS_COLORS.timeline.begin_checkout} name="Dirección" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="checkout_error" stroke={ANALYTICS_COLORS.timeline.add_to_cart} name="Checkout" strokeWidth={2} dot={false} />
@@ -965,16 +1006,14 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── ROW 8: ALERTAS + RFM en grid ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
-          {/* Alertas */}
           {alerts.length > 0 && (
             <div style={glassCard}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
                 <span style={{ fontSize: 20, animation: 'ringBell 2s ease-in-out infinite' }}>🔔</span>
                 <h2 style={{ fontSize: 17, fontWeight: 700, color: 'rgba(255,255,255,0.9)', margin: 0 }}>Alertas</h2>
                 {alerts.some(a => a.severity === 'critical') && (
-                  <span style={{ background: '#DB4437', color: '#fff', padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, marginLeft: 4, animation: 'pulse 1.5s ease-in-out infinite' }}>
+                  <span style={{ background: '#DB4437', color: '#fff', padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, animation: 'pulse 1.5s ease-in-out infinite' }}>
                     {alerts.filter(a => a.severity === 'critical').length} crítica{alerts.filter(a => a.severity === 'critical').length > 1 ? 's' : ''}
                   </span>
                 )}
@@ -984,25 +1023,15 @@ export default function AdminPage() {
               </div>
             </div>
           )}
-
-          {/* RFM */}
           {rfmData.length > 0 && (
             <div style={glassCard}>
               <SectionHeader icon="💎" title="Segmentación RFM" subtitle="Recencia · Frecuencia · Monetario" />
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 440 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                      {['Usuario', 'Recencia', 'Frec.', 'Monetario', 'Segmento'].map(h => (
-                        <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Usuario' ? 'left' : 'center', fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
+                  <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>{['Usuario', 'Recencia', 'Frec.', 'Monetario', 'Segmento'].map(h => (<th key={h} style={{ padding: '8px 12px', textAlign: h === 'Usuario' ? 'left' : 'center', fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>))}</tr></thead>
                   <tbody>
                     {rfmData.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <td style={{ padding: '10px 12px', color: c.primary, fontSize: 12, fontFamily: 'monospace' }}>{item.visitor_id ? item.visitor_id.slice(0, 12) + '…' : 'Anónimo'}</td>
                         <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>{item.recency}d</td>
                         <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>{item.frequency}</td>
@@ -1021,26 +1050,247 @@ export default function AdminPage() {
   };
 
   // ============================================================
-  // LOADING / ERROR SCREENS
+  // RENDER: PRODUCTOS
   // ============================================================
-  if (loadingOrders) {
-    return (
-      <div style={{ backgroundColor: '#0D0D0D', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.08)', borderTop: `3px solid ${c.primary}`, animation: 'spin 0.8s linear infinite' }} />
-        <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, letterSpacing: '0.04em' }}>Cargando panel...</p>
-        <style jsx>{`@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}`}</style>
+  const renderProductsPanel = () => (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 28 }}>
+        <KPICard label="Total Productos" value={products.length} icon="📦" color="#4285F4" gradient="linear-gradient(135deg, rgba(66,133,244,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+        <KPICard label="Con stock" value={products.filter(p => p.stock > 0).length} icon="✅" color="#0F9D58" gradient="linear-gradient(135deg, rgba(15,157,88,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+        <KPICard label="Sin stock" value={products.filter(p => p.stock === 0).length} icon="⚠️" color="#F4B400" statusThresholds={[1, 5]} reverseStatus gradient="linear-gradient(135deg, rgba(244,180,0,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={openCreateDrawer} style={{ padding: '12px 28px', background: c.primary, color: '#000', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'opacity 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '0.85'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+            + Nuevo producto
+          </button>
+        </div>
       </div>
-    );
-  }
 
-  if (error) {
-    return (
-      <div style={{ backgroundColor: '#0D0D0D', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
-        <p style={{ color: '#DB4437', fontSize: 14 }}>⚠️ {error}</p>
-        <button onClick={() => router.push('/')} style={{ padding: '10px 24px', backgroundColor: c.primary, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}>← Volver al inicio</button>
+      <div style={{ ...glassCard, padding: '14px 20px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+          <input type="text" placeholder="🔍  Buscar producto…" value={productSearch} onChange={e => setProductSearch(e.target.value)}
+            style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 40, color: 'rgba(255,255,255,0.8)', fontSize: 13, minWidth: 240, outline: 'none' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select value={productSortBy} onChange={e => setProductSortBy(e.target.value)}
+              style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 40, color: 'rgba(255,255,255,0.7)', fontSize: 13, outline: 'none' }}>
+              <option value="created_at">Más reciente</option>
+              <option value="name">Nombre</option>
+              <option value="price">Precio</option>
+              <option value="stock">Stock</option>
+            </select>
+            <button onClick={() => setProductSortOrder(o => o === 'asc' ? 'desc' : 'asc')} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 40, color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 13 }}>
+              {productSortOrder === 'asc' ? '↑ Asc' : '↓ Desc'}
+            </button>
+          </div>
+        </div>
       </div>
-    );
-  }
+
+      <div style={{ ...glassCard, padding: 0, overflow: 'hidden' }}>
+        {loadingProducts ? (
+          <div style={{ padding: 48, textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Cargando productos…</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                  {['Img', 'Producto', 'Categoría', 'Tallas', 'Colores', 'Precio', 'Stock', 'Acciones'].map(h => (
+                    <th key={h} style={{ padding: '12px 14px', textAlign: h === 'Img' || h === 'Producto' ? 'left' : 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedProducts.length === 0 ? (
+                  <tr><td colSpan="8" style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>No se encontraron productos</td></tr>
+                ) : (
+                  paginatedProducts.map((product, idx) => (
+                    <tr key={product.slug} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s', animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both` }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                          {product.images && product.images.length > 0
+                            ? <img src={product.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'rgba(255,255,255,0.15)' }}>📷</div>}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{product.name}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{product.category || '—'}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
+                          {product.sizes?.length > 0
+                            ? product.sizes.map(s => <span key={s} style={{ background: 'rgba(66,133,244,0.15)', color: '#4285F4', padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{s}</span>)
+                            : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
+                          {product.colors?.length > 0
+                            ? product.colors.map(col => {
+                                const dot = getColorDot(col);
+                                return (
+                                  <span key={col} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(184,134,11,0.12)', color: 'rgba(255,255,255,0.6)', padding: '1px 7px', borderRadius: 10, fontSize: 11 }}>
+                                    {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }} />}
+                                    {col}
+                                  </span>
+                                );
+                              })
+                            : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#0F9D58', fontFamily: 'monospace' }}>${parseFloat(product.price).toLocaleString()}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 13, fontFamily: 'monospace', color: product.stock > 10 ? '#0F9D58' : product.stock > 0 ? '#F4B400' : '#DB4437', fontWeight: 600 }}>{product.stock}</span>
+                      </td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                          <button onClick={() => openEditDrawer(product)} style={{ padding: '5px 12px', background: 'rgba(184,134,11,0.1)', color: c.primary, border: '1px solid rgba(184,134,11,0.25)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Editar</button>
+                          <button onClick={() => handleDeleteProduct(product.slug)} style={{ padding: '5px 12px', background: 'rgba(219,68,55,0.1)', color: '#DB4437', border: '1px solid rgba(219,68,55,0.25)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Eliminar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {totalProductPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, padding: '14px 18px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <button onClick={() => setProductPage(p => Math.max(1, p - 1))} disabled={productPage === 1} style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.4)', opacity: productPage === 1 ? 0.3 : 1 }}>← Ant</button>
+            <span style={{ padding: '6px 14px', fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>{productPage} / {totalProductPages}</span>
+            <button onClick={() => setProductPage(p => Math.min(totalProductPages, p + 1))} disabled={productPage === totalProductPages} style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, cursor: 'pointer', color: 'rgba(255,255,255,0.4)', opacity: productPage === totalProductPages ? 0.3 : 1 }}>Sig →</button>
+          </div>
+        )}
+      </div>
+
+      {/* ─── DRAWER ─── */}
+      {showProductDrawer && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}>
+          <div onClick={() => setShowProductDrawer(false)} style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'relative', width: '100%', maxWidth: 600, height: '100%', background: 'rgba(14,14,14,0.97)', backdropFilter: 'blur(30px)', borderLeft: '1px solid rgba(255,255,255,0.08)', boxShadow: '-12px 0 48px rgba(0,0,0,0.7)', padding: '32px 28px', overflowY: 'auto', animation: 'slideInRight 0.3s cubic-bezier(0.4,0,0.2,1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: 'rgba(255,255,255,0.9)', margin: 0 }}>{editingProduct ? 'Editar producto' : 'Nuevo producto'}</h2>
+              <button onClick={() => setShowProductDrawer(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+              {/* Información básica */}
+              <section style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <h3 style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 14, letterSpacing: '0.08em', textTransform: 'uppercase' }}>📋 Información básica</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div>
+                    <input type="text" placeholder="Nombre del producto" value={productForm.name}
+                      onChange={e => setProductForm(prev => ({ ...prev, name: e.target.value }))}
+                      style={inputStyle(!!formErrors.name)} />
+                    <FieldError errors={formErrors.name} />
+                  </div>
+                  <div>
+                    <input type="text" placeholder="Slug (URL amigable)" value={productForm.slug}
+                      onChange={e => setProductForm(prev => ({ ...prev, slug: e.target.value }))}
+                      style={inputStyle(!!formErrors.slug)} />
+                    <FieldError errors={formErrors.slug} />
+                  </div>
+                  <div>
+                    <textarea placeholder="Descripción del producto" value={productForm.description} rows={3}
+                      onChange={e => setProductForm(prev => ({ ...prev, description: e.target.value }))}
+                      style={{ ...inputStyle(!!formErrors.description), resize: 'vertical' }} />
+                    <FieldError errors={formErrors.description} />
+                  </div>
+                </div>
+              </section>
+
+              {/* Inventario */}
+              <section style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <h3 style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 14, letterSpacing: '0.08em', textTransform: 'uppercase' }}>📦 Inventario y precio</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                  <div>
+                    <input type="number" step="0.01" min="0" placeholder="Precio" value={productForm.price}
+                      onChange={e => setProductForm(prev => ({ ...prev, price: e.target.value }))}
+                      style={inputStyle(!!formErrors.price)} />
+                    <FieldError errors={formErrors.price} />
+                  </div>
+                  <div>
+                    <input type="text" placeholder="Categoría" value={productForm.category}
+                      onChange={e => setProductForm(prev => ({ ...prev, category: e.target.value }))}
+                      style={inputStyle(!!formErrors.category)} />
+                    <FieldError errors={formErrors.category} />
+                  </div>
+                  <div>
+                    <input type="number" step="1" min="0" placeholder="Stock" value={productForm.stock}
+                      onChange={e => setProductForm(prev => ({ ...prev, stock: e.target.value }))}
+                      style={inputStyle(!!formErrors.stock)} />
+                    <FieldError errors={formErrors.stock} />
+                  </div>
+                </div>
+
+                {/* ✅ BUGFIX: TagInput evita la colisión con `c` usando componente dedicado */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <TagInput
+                    label="Tallas"
+                    placeholder="Ej: S, M, L, XL"
+                    values={productForm.sizes}
+                    onChange={newSizes => setProductForm(prev => ({ ...prev, sizes: newSizes }))}
+                  />
+                  <TagInput
+                    label="Colores"
+                    placeholder="Ej: negro, blanco"
+                    values={productForm.colors}
+                    onChange={newColors => setProductForm(prev => ({ ...prev, colors: newColors }))}
+                    colorMode
+                  />
+                </div>
+              </section>
+
+              {/* Imágenes */}
+              <section style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <h3 style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 14, letterSpacing: '0.08em', textTransform: 'uppercase' }}>🖼️ Imágenes</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 10 }}>
+                  {productForm.images.map((url, i) => (
+                    <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button onClick={() => handleRemoveImage(i)} style={{ position: 'absolute', top: 3, right: 3, width: 20, height: 20, background: 'rgba(0,0,0,0.75)', color: '#fff', border: 'none', borderRadius: '50%', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                    </div>
+                  ))}
+                  <div onClick={handleOpenCloudinaryWidget} style={{ aspectRatio: '1', borderRadius: 10, border: '2px dashed rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', color: 'rgba(255,255,255,0.3)' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = c.primary; e.currentTarget.style.color = c.primary; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}>
+                    <span style={{ fontSize: 24 }}>+</span>
+                    <span style={{ fontSize: 10, marginTop: 2 }}>Subir</span>
+                  </div>
+                </div>
+              </section>
+
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowProductDrawer(false)} style={{ padding: '10px 22px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: 13 }}>Cancelar</button>
+                <button onClick={handleSaveProduct} disabled={savingProduct} style={{ padding: '10px 22px', background: c.primary, color: '#000', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: savingProduct ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+                  {savingProduct ? 'Guardando…' : editingProduct ? 'Actualizar' : 'Crear producto'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  // ============================================================
+  // LOADING / ERROR
+  // ============================================================
+  if (loadingOrders) return (
+    <div style={{ backgroundColor: '#0D0D0D', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
+      <div style={{ width: 44, height: 44, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.08)', borderTop: `3px solid ${c.primary}`, animation: 'spin 0.8s linear infinite' }} />
+      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Cargando panel...</p>
+      <style jsx>{`@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ backgroundColor: '#0D0D0D', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
+      <p style={{ color: '#DB4437' }}>⚠️ {error}</p>
+      <button onClick={() => router.push('/')} style={{ padding: '10px 24px', backgroundColor: c.primary, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}>← Volver</button>
+    </div>
+  );
 
   // ============================================================
   // RENDER PRINCIPAL
@@ -1048,55 +1298,43 @@ export default function AdminPage() {
   return (
     <div style={{ backgroundColor: '#0D0D0D', minHeight: '100vh', color: 'rgba(255,255,255,0.85)' }}>
       <Toaster position="top-right" toastOptions={{ style: { background: 'rgba(26,26,26,0.95)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, backdropFilter: 'blur(20px)', fontSize: 13 } }} />
-
-      {/* Ambient glow */}
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '60vw', height: '30vh', background: 'radial-gradient(ellipse, rgba(184,134,11,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
 
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 1440, margin: '0 auto', padding: 'clamp(20px, 4vw, 40px) clamp(16px, 4vw, 32px)' }}>
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 36, flexWrap: 'wrap', gap: 12, animation: 'fadeInDown 0.5s ease-out' }}>
-          <div>
-            <h1 style={{ fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 900, color: 'rgba(255,255,255,0.92)', margin: 0, letterSpacing: '-0.02em' }}>
-              Urban <span style={{ color: c.primary }}>Store</span>
-              <span style={{ fontSize: 14, fontWeight: 400, color: 'rgba(255,255,255,0.2)', marginLeft: 12, letterSpacing: 0 }}>Panel Admin</span>
-            </h1>
-          </div>
-          <button onClick={() => router.push('/')} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, cursor: 'pointer', fontSize: 13, transition: 'all 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}>
-            ← Tienda
-          </button>
+          <h1 style={{ fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 900, color: 'rgba(255,255,255,0.92)', margin: 0, letterSpacing: '-0.02em' }}>
+            Urban <span style={{ color: c.primary }}>Store</span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: 'rgba(255,255,255,0.2)', marginLeft: 12 }}>Panel Admin</span>
+          </h1>
+          <button onClick={() => router.push('/')} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, cursor: 'pointer', fontSize: 13 }}>← Tienda</button>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 32, padding: '4px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, width: 'fit-content', border: '1px solid rgba(255,255,255,0.06)' }}>
-          {[['orders', '📋', 'Pedidos'], ['analytics', '📊', 'Analíticas']].map(([tab, icon, label]) => (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 32, padding: 4, background: 'rgba(255,255,255,0.03)', borderRadius: 14, width: 'fit-content', border: '1px solid rgba(255,255,255,0.06)' }}>
+          {[['orders', '📋', 'Pedidos'], ['analytics', '📊', 'Analíticas'], ['products', '📦', 'Productos']].map(([tab, icon, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '9px 22px', borderRadius: 10, background: activeTab === tab ? 'rgba(255,255,255,0.08)' : 'transparent', color: activeTab === tab ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.35)', border: 'none', cursor: 'pointer', fontWeight: activeTab === tab ? 700 : 400, fontSize: 14, transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 6 }}>
               {icon} {label}
             </button>
           ))}
         </div>
 
-        {activeTab === 'orders' ? renderOrdersPanel() : renderAnalyticsPanel()}
+        {activeTab === 'orders' ? renderOrdersPanel() : activeTab === 'analytics' ? renderAnalyticsPanel() : renderProductsPanel()}
       </div>
 
       <style jsx global>{`
-        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-        @keyframes ringBell { 0%, 100% { transform: rotate(0deg); } 10%, 30% { transform: rotate(-12deg); } 20%, 40% { transform: rotate(12deg); } 50% { transform: rotate(0deg); } }
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-        input::placeholder { color: rgba(255,255,255,0.25) !important; }
-        select option { background: #1a1a1a; color: rgba(255,255,255,0.8); }
-        @media (max-width: 640px) {
-          table { font-size: 12px; }
-        }
+        @keyframes fadeInDown { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes slideInRight { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+        @keyframes ringBell { 0%,100% { transform:rotate(0deg); } 10%,30% { transform:rotate(-12deg); } 20%,40% { transform:rotate(12deg); } 50% { transform:rotate(0deg); } }
+        * { box-sizing:border-box; }
+        ::-webkit-scrollbar { width:6px; height:6px; }
+        ::-webkit-scrollbar-track { background:rgba(255,255,255,0.03); }
+        ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:3px; }
+        ::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.2); }
+        input::placeholder, textarea::placeholder { color:rgba(255,255,255,0.2) !important; }
+        select option { background:#1a1a1a; color:rgba(255,255,255,0.8); }
+        @media (max-width:640px) { table { font-size:12px; } }
       `}</style>
     </div>
   );

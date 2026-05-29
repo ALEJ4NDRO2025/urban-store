@@ -2,15 +2,12 @@
 import { Inter } from 'next/font/google'
 import Navbar from './components/NavBar'
 import Providers from './providers'
-// ✅ Importa el componente oficial de Google Analytics para Next.js
 import { GoogleAnalytics } from '@next/third-parties/google'
 import PageViewTracker from './components/PageViewTracker'
+import Script from 'next/script'
 
-
-// Configurar la fuente Inter
 const inter = Inter({ subsets: ['latin'] })
 
-// Metadatos de la aplicación
 export const metadata = {
   title: 'Urban Store',
   description: 'Ropa y accesorios de cultura urbana',
@@ -30,16 +27,18 @@ export default function RootLayout({ children }) {
         <Providers>
           <Navbar />
           <PageViewTracker />
-          {/* Espaciado responsivo para que el contenido no quede pegado al navbar */}
           <div style={{ paddingTop: 'clamp(80px, 12vw, 100px)' }}>
             {children}
           </div>
         </Providers>
-        
-        {/* 🔥 Google Analytics 4 – lee automáticamente la variable de entorno NEXT_PUBLIC_GA_MEASUREMENT_ID */}
+
         <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
-        
-        
+
+        {/* 🆕 Cloudinary Upload Widget (CDN, sin npm) */}
+        <Script
+          src="https://upload-widget.cloudinary.com/global/all.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   )
