@@ -14,6 +14,10 @@ class Product(me.Document):
     sizes       = me.ListField(me.StringField())   # ['S', 'M', 'L', 'XL']
     colors      = me.ListField(me.StringField())   # ['negro', 'blanco', 'rojo']
 
+    # 🆕 Stock por variante (talla + color)
+    # Ejemplo: {"M|negro": 5, "L|blanco": 3, "S|rojo": 0}
+    stock_by_variant = me.DictField(default=dict)
+
     # Imágenes — URLs de Cloudinary
     images      = me.ListField(me.StringField())
 

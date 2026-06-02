@@ -5,7 +5,7 @@ class ProductSerializer(serializers.Serializer):
     # Información básica
     name        = serializers.CharField(max_length=200)
     slug        = serializers.CharField(max_length=200)
-    description = serializers.CharField(required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
     price       = serializers.DecimalField(max_digits=10, decimal_places=2)
 
     # Categoría y stock
@@ -13,6 +13,9 @@ class ProductSerializer(serializers.Serializer):
     stock       = serializers.IntegerField(default=0)
     sizes       = serializers.ListField(child=serializers.CharField(), required=False)
     colors      = serializers.ListField(child=serializers.CharField(), required=False)
+
+    # 🆕 Stock por variante (talla + color)
+    stock_by_variant = serializers.DictField(required=False)
 
     # Imágenes
     images      = serializers.ListField(child=serializers.URLField(), required=False)
@@ -26,10 +29,8 @@ class ProductSerializer(serializers.Serializer):
         Si se está editando un producto (self.instance existe) y el slug
         no cambió, se permite sin comprobar duplicados.
         """
-        # En actualización, si el slug es el mismo que ya tenía, no validar duplicado
         if self.instance and self.instance.slug == value:
             return value
-        # Si hay otro producto con ese slug, lanzar error
         if Product.objects(slug=value).first():
             raise serializers.ValidationError("Ya existe un producto con este slug")
         return value

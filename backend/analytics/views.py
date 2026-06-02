@@ -612,6 +612,37 @@ class DashboardStatsView(APIView):
         ]
 
         # ============================================================
+        # 🆕 15. MÉTRICAS DE WHATSAPP (clic, compra y lista de sesiones)
+        # ============================================================
+        # Sesiones que hicieron clic en "Comprar por WhatsApp"
+        pipeline_wp = [
+            {"$match": {"event_type": "whatsapp_cart_click", "created_at": {"$gte": start_date, "$lte": end_date}}},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "count"}
+        ]
+        wp_result = list(Event.objects.aggregate(*pipeline_wp))
+        whatsapp_sessions = wp_result[0]['count'] if wp_result else 0
+
+        # Sesiones que concretaron compra por WhatsApp (evento manual)
+        pipeline_wp_purchase = [
+            {"$match": {"event_type": "whatsapp_purchase", "created_at": {"$gte": start_date, "$lte": end_date}}},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "count"}
+        ]
+        wp_purchase_result = list(Event.objects.aggregate(*pipeline_wp_purchase))
+        whatsapp_purchases = wp_purchase_result[0]['count'] if wp_purchase_result else 0
+
+        # Lista de últimos 10 session_id únicos con clic en WhatsApp
+        pipeline_wp_list = [
+            {"$match": {"event_type": "whatsapp_cart_click", "created_at": {"$gte": start_date, "$lte": end_date}}},
+            {"$group": {"_id": "$session_id"}},
+            {"$sort": {"_id": -1}},
+            {"$limit": 10}
+        ]
+        wp_sessions_list_raw = list(Event.objects.aggregate(*pipeline_wp_list))
+        whatsapp_sessions_list = [item['_id'] for item in wp_sessions_list_raw]
+
+        # ============================================================
         # RESPUESTA FINAL ENRIQUECIDA
         # ============================================================
         return Response({
@@ -640,6 +671,11 @@ class DashboardStatsView(APIView):
 
             'retention_metrics': retention_metrics,
             'traffic_sources': traffic_sources_list,
+
+            # 🆕 Métricas WhatsApp
+            'whatsapp_sessions': whatsapp_sessions,
+            'whatsapp_purchases': whatsapp_purchases,
+            'whatsapp_sessions_list': whatsapp_sessions_list,
         })
 
 

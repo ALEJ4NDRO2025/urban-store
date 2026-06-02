@@ -47,9 +47,9 @@ export default function ProductPage() {
         const data = await res.json();
         setProduct(data);
         if (data.sizes?.length > 0) setSelectedSize(data.sizes[0]);
-        else setSelectedSize(null); // No hay tallas → no se requiere
+        else setSelectedSize(null);
         if (data.colors?.length > 0) setSelectedColor(data.colors[0]);
-        else setSelectedColor(null); // No hay colores → no se requiere
+        else setSelectedColor(null);
 
         if (!viewTracked.current) {
           viewTracked.current = true;
@@ -73,6 +73,43 @@ export default function ProductPage() {
   }, [slug]);
 
   // ============================================================
+  // CÁLCULO DE STOCK (TOTAL Y POR VARIANTE)
+  // ============================================================
+  const getCurrentStock = () => {
+    if (!product) return 0;
+    const size = selectedSize || '';
+    const color = selectedColor || '';
+
+    // Si hay stock_by_variant y hay variante seleccionada, usar ese valor
+    if (product.stock_by_variant && size && color) {
+      const key = `${size}|${color}`;
+      if (key in product.stock_by_variant) {
+        return product.stock_by_variant[key] ?? 0;
+      }
+    }
+
+    // Si hay stock_by_variant pero no hay selección o no coincide la clave,
+    // sumamos todo el stock disponible entre todas las variantes
+    if (product.stock_by_variant && Object.keys(product.stock_by_variant).length > 0) {
+      return Object.values(product.stock_by_variant).reduce((a, b) => a + b, 0);
+    }
+
+    // Fallback al stock genérico
+    return product.stock || 0;
+  };
+
+  const currentStock = getCurrentStock();
+
+  // Stock total (suma de todas las variantes o fallback genérico)
+  const totalStock = (() => {
+    if (!product) return 0;
+    if (product.stock_by_variant && Object.keys(product.stock_by_variant).length > 0) {
+      return Object.values(product.stock_by_variant).reduce((a, b) => a + b, 0);
+    }
+    return product.stock || 0;
+  })();
+
+  // ============================================================
   // Acciones del carrito
   // ============================================================
   const handleIncrease = async () => {
@@ -83,7 +120,6 @@ export default function ProductPage() {
       return;
     }
 
-    // Validación: solo exigir talla/color si el producto los tiene
     const sizeRequired = product.sizes?.length > 0;
     const colorRequired = product.colors?.length > 0;
     if (sizeRequired && !selectedSize) {
@@ -183,12 +219,12 @@ export default function ProductPage() {
 
   // Determinar disponibilidad
   const price = parseFloat(product.price) || 0;
-  const stock = product.stock || 0;
   const hasSizes = product.sizes?.length > 0;
   const hasColors = product.colors?.length > 0;
+  const hasVariantSelected = (hasSizes || hasColors) && selectedSize && selectedColor;
   const isSizeMissing = hasSizes && !selectedSize;
   const isColorMissing = hasColors && !selectedColor;
-  const isOutOfStock = stock === 0;
+  const isOutOfStock = currentStock === 0;
   const isAvailable = !isSizeMissing && !isColorMissing && !isOutOfStock;
 
   return (
@@ -341,26 +377,39 @@ export default function ProductPage() {
               <span style={{ color: c.textWeak, fontSize: '14px' }}>COP</span>
             </div>
 
-            {/* Stock */}
+            {/* Stock (nueva presentación) */}
             <div style={{
               display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              background: stock > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              flexDirection: 'column',
+              gap: '6px',
+              background: totalStock > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
               borderRadius: '12px',
+              padding: '12px 16px',
               width: 'fit-content',
             }}>
-              <div style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: stock > 0 ? c.success : c.error,
-                boxShadow: `0 0 6px ${stock > 0 ? c.success : c.error}`,
-              }} />
-              <span style={{ fontSize: '13px', fontWeight: '600', color: stock > 0 ? c.success : c.error }}>
-                {stock > 0 ? `${stock} unidades disponibles` : 'Agotado'}
-              </span>
+              {/* Línea principal: stock total o variante seleccionada */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: totalStock > 0 ? c.success : c.error,
+                  boxShadow: `0 0 6px ${totalStock > 0 ? c.success : c.error}`,
+                }} />
+                <span style={{ fontSize: '14px', fontWeight: '600', color: totalStock > 0 ? c.success : c.error }}>
+                  {hasVariantSelected
+                    ? `${currentStock} disponible${currentStock !== 1 ? 's' : ''} en ${selectedSize} / ${selectedColor}`
+                    : `${totalStock} disponible${totalStock !== 1 ? 's' : ''}`
+                  }
+                </span>
+              </div>
+
+              {/* Línea secundaria: cuando hay variante seleccionada, mostrar el total general */}
+              {hasVariantSelected && (
+                <div style={{ fontSize: '12px', color: c.textSub, marginLeft: '16px' }}>
+                  ({totalStock} en total)
+                </div>
+              )}
             </div>
 
             {/* Descripción */}
@@ -488,7 +537,7 @@ export default function ProductPage() {
                   </span>
                   <button
                     onClick={handleIncrease}
-                    disabled={!isAvailable || cartQuantity >= stock}
+                    disabled={!isAvailable || cartQuantity >= currentStock}
                     style={{
                       width: '36px',
                       height: '36px',

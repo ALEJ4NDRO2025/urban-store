@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from .models import Order, OrderItem, ShippingAddress
 from cart.models import Cart
+from products.models import Product          # ← Para descontar stock
 import jwt
 from datetime import datetime, timedelta
 from django.utils import timezone
@@ -87,7 +88,6 @@ class CreateOrderView(APIView):
         # ─── 1. Intentar obtener items desde el body del frontend ───
         items_data = request.data.get('items', [])
         
-        # Si el frontend envió items, los usamos directamente
         if items_data:
             order_items = [
                 OrderItem(
@@ -102,7 +102,7 @@ class CreateOrderView(APIView):
                 for item in items_data
             ]
         else:
-            # ─── 2. Si no, usar el carrito de la base de datos (compatibilidad) ───
+            # ─── 2. Si no, usar el carrito de la base de datos ───
             try:
                 cart = Cart.objects.get(user_id=user_id)
             except Cart.DoesNotExist:
@@ -147,6 +147,25 @@ class CreateOrderView(APIView):
             expires_at=timezone.now() + timedelta(minutes=5)
         )
         order.save()
+
+        # ─── DESCONTAR STOCK DE PRODUCTOS ───
+        for item in order.items:
+            product = Product.objects(slug=item.product_slug).first()
+            if not product:
+                continue
+
+            variant_key = f"{item.size}|{item.color}"
+
+            # Si existe stock_by_variant y la clave está presente, descontar ahí
+            if product.stock_by_variant and variant_key in product.stock_by_variant:
+                current = product.stock_by_variant[variant_key]
+                new_qty = max(0, current - item.quantity)
+                product.stock_by_variant[variant_key] = new_qty
+                product.save()
+            else:
+                # Fallback: descontar del stock general
+                new_stock = max(0, product.stock - item.quantity)
+                product.update(stock=new_stock)
 
         # Vaciar el carrito en BD solo si se usó
         if not items_data:

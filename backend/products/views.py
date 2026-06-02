@@ -50,7 +50,6 @@ class ProductListView(APIView):
         if size:
             products = products.filter(sizes=size)
             
-            
         data = [{
             'id':       str(p.id),
             'name':     p.name,
@@ -61,6 +60,7 @@ class ProductListView(APIView):
             'sizes':    p.sizes,
             'colors':   p.colors,
             'images':   p.images,
+            'stock_by_variant': p.stock_by_variant,   # ← NUEVO
         } for p in products]
 
         return Response(data)
@@ -107,6 +107,7 @@ class ProductDetailView(APIView):
             'sizes':       product.sizes,
             'colors':      product.colors,
             'images':      product.images,
+            'stock_by_variant': product.stock_by_variant,   # ← NUEVO
         })
 
     def put(self, request, slug):

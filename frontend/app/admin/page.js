@@ -50,7 +50,6 @@ const TRAFFIC_SOURCE_STYLES = {
   social:    { color: '#FF5700', emoji: '🌐', label: 'Otras redes' },
 };
 
-// Paleta para chips de color en el drawer
 const COLOR_PALETTE = {
   negro: '#1a1a1a', blanco: '#f5f5f5', rojo: '#e53935', azul: '#1e88e5',
   verde: '#43a047', amarillo: '#fdd835', naranja: '#fb8c00', morado: '#8e24aa',
@@ -300,12 +299,11 @@ function FieldError({ errors }) {
 }
 
 // ============================================================
-// COMPONENTE: TAG INPUT (tallas / colores) — sin colisión con `c`
+// COMPONENTE: TAG INPUT (tallas / colores)
 // ============================================================
 function TagInput({ label, placeholder, values, onChange, colorMode = false }) {
   const [inputVal, setInputVal] = useState('');
 
-  // Confirmar tag al presionar coma, Enter o Tab
   const handleKeyDown = (e) => {
     if (e.key === ',' || e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
@@ -319,7 +317,6 @@ function TagInput({ label, placeholder, values, onChange, colorMode = false }) {
     }
   };
 
-  // También procesar si pegan texto con comas
   const handleChange = (e) => {
     const raw = e.target.value;
     if (raw.includes(',')) {
@@ -434,9 +431,15 @@ export default function AdminPage() {
   const [productForm, setProductForm] = useState({
     name: '', slug: '', description: '', price: '', category: '', stock: '',
     sizes: [], colors: [], images: [],
+    stock_by_variant: {}
   });
   const [savingProduct, setSavingProduct] = useState(false);
   const [formErrors, setFormErrors] = useState({});
+
+  // --- Stock ---
+  const [stockData, setStockData] = useState([]);
+  const [loadingStock, setLoadingStock] = useState(false);
+  const [stockFilter, setStockFilter] = useState('all');
 
   // ============================================================
   // EFECTOS
@@ -510,6 +513,20 @@ export default function AdminPage() {
       .then(res => res.json())
       .then(data => { setProducts(Array.isArray(data) ? data : []); setLoadingProducts(false); })
       .catch(() => setLoadingProducts(false));
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'stock') return;
+    const token = localStorage.getItem('access');
+    if (!token) return;
+    setLoadingStock(true);
+    fetch(`${API_URL}/api/products/`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        setStockData(Array.isArray(data) ? data : []);
+        setLoadingStock(false);
+      })
+      .catch(() => setLoadingStock(false));
   }, [activeTab]);
 
   // ============================================================
@@ -605,7 +622,7 @@ export default function AdminPage() {
 
   const openCreateDrawer = () => {
     setEditingProduct(null);
-    setProductForm({ name: '', slug: '', description: '', price: '', category: '', stock: '', sizes: [], colors: [], images: [] });
+    setProductForm({ name: '', slug: '', description: '', price: '', category: '', stock: '', sizes: [], colors: [], images: [], stock_by_variant: {} });
     setFormErrors({});
     setShowProductDrawer(true);
   };
@@ -616,6 +633,7 @@ export default function AdminPage() {
       name: product.name || '', slug: product.slug || '', description: product.description || '',
       price: product.price || '', category: product.category || '', stock: product.stock || '',
       sizes: product.sizes || [], colors: product.colors || [], images: product.images || [],
+      stock_by_variant: product.stock_by_variant || {}
     });
     setFormErrors({});
     setShowProductDrawer(true);
@@ -631,7 +649,17 @@ export default function AdminPage() {
     const token = localStorage.getItem('access');
     setSavingProduct(true);
     setFormErrors({});
-    const payload = { ...productForm, price: parseFloat(productForm.price) || 0, stock: parseInt(productForm.stock) || 0 };
+
+    const totalStock = (productForm.stock_by_variant && Object.keys(productForm.stock_by_variant).length > 0)
+      ? Object.values(productForm.stock_by_variant).reduce((a, b) => a + b, 0)
+      : parseInt(productForm.stock) || 0;
+
+    const payload = {
+      ...productForm,
+      price: parseFloat(productForm.price) || 0,
+      stock: totalStock,
+    };
+
     const url = editingProduct ? `${API_URL}/api/products/${editingProduct.slug}/` : `${API_URL}/api/products/`;
     const method = editingProduct ? 'PUT' : 'POST';
     try {
@@ -840,6 +868,103 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+
+            {/* 🆕 SEGUIMIENTO DE WHATSAPP */}
+            {stats.whatsapp_sessions !== undefined && (
+              <div style={{ ...glassCard, marginBottom: '40px' }}>
+                <SectionHeader icon="💬" title="Seguimiento de WhatsApp" subtitle="Clics en WhatsApp → Compras concretadas" />
+                
+                {/* Tarjetas de métricas */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: '#25D366' }}>
+                      {stats.whatsapp_sessions || 0}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+                      Clics en WhatsApp
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: '#0F9D58' }}>
+                      {stats.whatsapp_purchases || 0}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+                      Compras concretadas
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: '#B8860B' }}>
+                      {stats.whatsapp_sessions > 0
+                        ? ((stats.whatsapp_purchases || 0) / stats.whatsapp_sessions * 100).toFixed(1)
+                        : 0}%
+                    </div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+                      Tasa de conversión
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botón para registrar compra manual */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+                  <button
+                    onClick={() => {
+                      const sessionId = prompt('Ingresá el session_id de la sesión de WhatsApp:');
+                      if (!sessionId) return;
+
+                      fetch(`${API_URL}/api/analytics/track/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          event_type: 'whatsapp_purchase',
+                          session_id: sessionId,
+                          metadata: { recorded_by: 'admin' },
+                        }),
+                      })
+                        .then(() => {
+                          toast.success('✅ Compra registrada correctamente');
+                          const token = localStorage.getItem('access');
+                          const now = new Date();
+                          const end = now.toISOString().split('T')[0];
+                          const start = new Date(now - timePeriod * 86400000).toISOString().split('T')[0];
+                          fetch(`${API_URL}/api/analytics/dashboard-stats/?mode=${analyticsMode}&start=${start}&end=${end}`, {
+                            headers: { Authorization: `Bearer ${token}` },
+                          })
+                            .then(res => res.json())
+                            .then(data => {
+                              setStats(data);
+                              setTrafficData(data.traffic_sources || []);
+                            });
+                        })
+                        .catch(() => toast.error('Error al registrar la compra'));
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      background: '#25D366',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 10,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="#fff">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/>
+                    </svg>
+                    📝 Registrar compra manual
+                  </button>
+                </div>
+
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: '12px' }}>
+                  Cuando un cliente concrete la compra por WhatsApp, ingresá su session_id y hacé clic en el botón.
+                  El session_id lo encontrás en la colección analytics_events filtrando por whatsapp_cart_click.
+                </p>
+              </div>
+            )}
+
             <GaugeChart value={conversionRates.visit_to_cart || 0} title="Visitante → Carrito" />
             {stats.checkout_started_count !== undefined && stats.checkout_started_count !== null && (
               <div style={glassCard}>
@@ -1102,53 +1227,66 @@ export default function AdminPage() {
                 {paginatedProducts.length === 0 ? (
                   <tr><td colSpan="8" style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>No se encontraron productos</td></tr>
                 ) : (
-                  paginatedProducts.map((product, idx) => (
-                    <tr key={product.slug} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s', animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both` }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,0.05)', flexShrink: 0 }}>
-                          {product.images && product.images.length > 0
-                            ? <img src={product.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'rgba(255,255,255,0.15)' }}>📷</div>}
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{product.name}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{product.category || '—'}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
-                          {product.sizes?.length > 0
-                            ? product.sizes.map(s => <span key={s} style={{ background: 'rgba(66,133,244,0.15)', color: '#4285F4', padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{s}</span>)
-                            : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
-                          {product.colors?.length > 0
-                            ? product.colors.map(col => {
-                                const dot = getColorDot(col);
-                                return (
-                                  <span key={col} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(184,134,11,0.12)', color: 'rgba(255,255,255,0.6)', padding: '1px 7px', borderRadius: 10, fontSize: 11 }}>
-                                    {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }} />}
-                                    {col}
-                                  </span>
-                                );
-                              })
-                            : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#0F9D58', fontFamily: 'monospace' }}>${parseFloat(product.price).toLocaleString()}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                        <span style={{ fontSize: 13, fontFamily: 'monospace', color: product.stock > 10 ? '#0F9D58' : product.stock > 0 ? '#F4B400' : '#DB4437', fontWeight: 600 }}>{product.stock}</span>
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                          <button onClick={() => openEditDrawer(product)} style={{ padding: '5px 12px', background: 'rgba(184,134,11,0.1)', color: c.primary, border: '1px solid rgba(184,134,11,0.25)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Editar</button>
-                          <button onClick={() => handleDeleteProduct(product.slug)} style={{ padding: '5px 12px', background: 'rgba(219,68,55,0.1)', color: '#DB4437', border: '1px solid rgba(219,68,55,0.25)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Eliminar</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  paginatedProducts.map((product, idx) => {
+                    const totalStock = (product.stock_by_variant && Object.keys(product.stock_by_variant).length > 0)
+                      ? Object.values(product.stock_by_variant).reduce((a, b) => a + b, 0)
+                      : (product.stock || 0);
+
+                    return (
+                      <tr key={product.slug} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s', animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both` }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{ padding: '10px 14px' }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                            {product.images && product.images.length > 0
+                              ? <img src={product.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'rgba(255,255,255,0.15)' }}>📷</div>}
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{product.name}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{product.category || '—'}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
+                            {product.sizes?.length > 0
+                              ? product.sizes.map(s => <span key={s} style={{ background: 'rgba(66,133,244,0.15)', color: '#4285F4', padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{s}</span>)
+                              : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
+                            {product.colors?.length > 0
+                              ? product.colors.map(col => {
+                                  const dot = getColorDot(col);
+                                  return (
+                                    <span key={col} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(184,134,11,0.12)', color: 'rgba(255,255,255,0.6)', padding: '1px 7px', borderRadius: 10, fontSize: 11 }}>
+                                      {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }} />}
+                                      {col}
+                                    </span>
+                                  );
+                                })
+                              : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#0F9D58', fontFamily: 'monospace' }}>${parseFloat(product.price).toLocaleString()}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <span style={{
+                            fontSize: 13,
+                            fontFamily: 'monospace',
+                            color: totalStock > 10 ? '#0F9D58' : totalStock > 0 ? '#F4B400' : '#DB4437',
+                            fontWeight: 600
+                          }}>
+                            {totalStock}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                            <button onClick={() => openEditDrawer(product)} style={{ padding: '5px 12px', background: 'rgba(184,134,11,0.1)', color: c.primary, border: '1px solid rgba(184,134,11,0.25)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Editar</button>
+                            <button onClick={() => handleDeleteProduct(product.slug)} style={{ padding: '5px 12px', background: 'rgba(219,68,55,0.1)', color: '#DB4437', border: '1px solid rgba(219,68,55,0.25)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Eliminar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1224,22 +1362,44 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* ✅ BUGFIX: TagInput evita la colisión con `c` usando componente dedicado */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <TagInput
-                    label="Tallas"
-                    placeholder="Ej: S, M, L, XL"
-                    values={productForm.sizes}
-                    onChange={newSizes => setProductForm(prev => ({ ...prev, sizes: newSizes }))}
-                  />
-                  <TagInput
-                    label="Colores"
-                    placeholder="Ej: negro, blanco"
-                    values={productForm.colors}
-                    onChange={newColors => setProductForm(prev => ({ ...prev, colors: newColors }))}
-                    colorMode
-                  />
+                  <TagInput label="Tallas" placeholder="Ej: S, M, L, XL" values={productForm.sizes} onChange={newSizes => setProductForm(prev => ({ ...prev, sizes: newSizes }))} />
+                  <TagInput label="Colores" placeholder="Ej: negro, blanco" values={productForm.colors} onChange={newColors => setProductForm(prev => ({ ...prev, colors: newColors }))} colorMode />
                 </div>
+
+                {/* Stock por variante */}
+                {productForm.sizes?.length > 0 && productForm.colors?.length > 0 && (
+                  <div style={{ marginTop: 14 }}>
+                    <h4 style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.08em' }}>📊 Stock por variante</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+                      {productForm.sizes.flatMap(size =>
+                        productForm.colors.map(color => {
+                          const key = `${size}|${color}`;
+                          const value = productForm.stock_by_variant?.[key] ?? '';
+                          return (
+                            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{size} / {color}</span>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                value={value}
+                                onChange={e => setProductForm(prev => ({
+                                  ...prev,
+                                  stock_by_variant: {
+                                    ...(prev.stock_by_variant || {}),
+                                    [key]: parseInt(e.target.value) || 0,
+                                  },
+                                }))}
+                                style={inputStyle()}
+                              />
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
               </section>
 
               {/* Imágenes */}
@@ -1273,6 +1433,132 @@ export default function AdminPage() {
       )}
     </>
   );
+
+  // ============================================================
+  // RENDER: STOCK
+  // ============================================================
+  const renderStockPanel = () => {
+    const filteredStock = stockData.filter(product => {
+      const totalStock = (product.stock_by_variant && Object.keys(product.stock_by_variant).length > 0)
+        ? Object.values(product.stock_by_variant).reduce((a, b) => a + b, 0)
+        : (product.stock || 0);
+      if (stockFilter === 'low') return totalStock > 0 && totalStock <= 5;
+      if (stockFilter === 'out') return totalStock === 0;
+      return true;
+    });
+
+    const handleQuickStockUpdate = async (slug, newStock) => {
+      const token = localStorage.getItem('access');
+      try {
+        const res = await fetch(`${API_URL}/api/products/${slug}/`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stock: parseInt(newStock) || 0 }),
+        });
+        if (!res.ok) throw new Error('Error al actualizar');
+        toast.success('Stock actualizado');
+        setStockData(prev => prev.map(p => (p.slug === slug ? { ...p, stock: parseInt(newStock) || 0 } : p)));
+      } catch { toast.error('No se pudo actualizar el stock'); }
+    };
+
+    return (
+      <>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 28 }}>
+          <KPICard label="Total productos" value={stockData.length} icon="📦" color="#4285F4" gradient="linear-gradient(135deg, rgba(66,133,244,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+          <KPICard label="Stock bajo (≤5)" value={stockData.filter(p => { const t = (p.stock_by_variant && Object.keys(p.stock_by_variant).length > 0) ? Object.values(p.stock_by_variant).reduce((a, b) => a + b, 0) : (p.stock || 0); return t > 0 && t <= 5; }).length} icon="⚠️" color="#F4B400" gradient="linear-gradient(135deg, rgba(244,180,0,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+          <KPICard label="Agotados" value={stockData.filter(p => { const t = (p.stock_by_variant && Object.keys(p.stock_by_variant).length > 0) ? Object.values(p.stock_by_variant).reduce((a, b) => a + b, 0) : (p.stock || 0); return t === 0; }).length} icon="🚫" color="#DB4437" gradient="linear-gradient(135deg, rgba(219,68,55,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+          <KPICard label="Unidades totales" value={stockData.reduce((sum, p) => { const t = (p.stock_by_variant && Object.keys(p.stock_by_variant).length > 0) ? Object.values(p.stock_by_variant).reduce((a, b) => a + b, 0) : (p.stock || 0); return sum + t; }, 0)} icon="📊" color="#0F9D58" gradient="linear-gradient(135deg, rgba(15,157,88,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+        </div>
+
+        <div style={{ ...glassCard, padding: '14px 20px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Filtro</span>
+            {[['all', 'Todos'], ['low', 'Stock bajo (≤5)'], ['out', 'Agotados']].map(([val, label]) => (
+              <button key={val} onClick={() => setStockFilter(val)} style={chipStyle(stockFilter === val)}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ ...glassCard, padding: 0, overflow: 'hidden' }}>
+          {loadingStock ? (
+            <div style={{ padding: 48, textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Cargando inventario…</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                    <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Producto</th>
+                    <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Categoría</th>
+                    <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Stock actual</th>
+                    <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Estado</th>
+                    <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Actualizar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStock.length === 0 ? (
+                    <tr><td colSpan="5" style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>No se encontraron productos</td></tr>
+                  ) : (
+                    filteredStock.map((product, idx) => {
+                      const totalStock = (product.stock_by_variant && Object.keys(product.stock_by_variant).length > 0)
+                        ? Object.values(product.stock_by_variant).reduce((a, b) => a + b, 0)
+                        : (product.stock || 0);
+                      const isLow = totalStock > 0 && totalStock <= 5;
+                      const isOut = totalStock === 0;
+                      return (
+                        <tr key={product.slug} style={{
+                          borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s', animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both`,
+                          background: isOut ? 'rgba(219,68,55,0.05)' : isLow ? 'rgba(244,180,0,0.05)' : 'transparent',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = isOut ? 'rgba(219,68,55,0.1)' : isLow ? 'rgba(244,180,0,0.1)' : 'rgba(255,255,255,0.02)'}
+                        onMouseLeave={e => e.currentTarget.style.background = isOut ? 'rgba(219,68,55,0.05)' : isLow ? 'rgba(244,180,0,0.05)' : 'transparent'}>
+                          <td style={{ padding: '12px 18px', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{product.name}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{product.category}</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: isOut ? '#DB4437' : isLow ? '#F4B400' : '#0F9D58' }}>
+                            {totalStock}
+                          </td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 12px', borderRadius: 20, background: isOut ? 'rgba(219,68,55,0.15)' : isLow ? 'rgba(244,180,0,0.15)' : 'rgba(15,157,88,0.15)', color: isOut ? '#DB4437' : isLow ? '#F4B400' : '#0F9D58', fontSize: 11, fontWeight: 700, border: `1px solid ${isOut ? 'rgba(219,68,55,0.3)' : isLow ? 'rgba(244,180,0,0.3)' : 'rgba(15,157,88,0.3)'}` }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isOut ? '#DB4437' : isLow ? '#F4B400' : '#0F9D58', boxShadow: `0 0 4px ${isOut ? '#DB4437' : isLow ? '#F4B400' : '#0F9D58'}` }} />
+                              {isOut ? 'Agotado' : isLow ? 'Stock bajo' : 'En stock'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 18px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
+                              <input
+                                type="number"
+                                min="0"
+                                defaultValue={totalStock}
+                                onBlur={(e) => {
+                                  const newStock = parseInt(e.target.value);
+                                  if (!isNaN(newStock) && newStock !== totalStock) {
+                                    handleQuickStockUpdate(product.slug, newStock);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const newStock = parseInt(e.target.value);
+                                    if (!isNaN(newStock) && newStock !== totalStock) {
+                                      handleQuickStockUpdate(product.slug, newStock);
+                                    }
+                                    e.target.blur();
+                                  }
+                                }}
+                                style={{ width: '70px', padding: '6px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center', outline: 'none', fontFamily: 'monospace' }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  };
 
   // ============================================================
   // LOADING / ERROR
@@ -1310,14 +1596,14 @@ export default function AdminPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 4, marginBottom: 32, padding: 4, background: 'rgba(255,255,255,0.03)', borderRadius: 14, width: 'fit-content', border: '1px solid rgba(255,255,255,0.06)' }}>
-          {[['orders', '📋', 'Pedidos'], ['analytics', '📊', 'Analíticas'], ['products', '📦', 'Productos']].map(([tab, icon, label]) => (
+          {[['orders', '📋', 'Pedidos'], ['analytics', '📊', 'Analíticas'], ['products', '📦', 'Productos'], ['stock', '📊', 'Stock']].map(([tab, icon, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '9px 22px', borderRadius: 10, background: activeTab === tab ? 'rgba(255,255,255,0.08)' : 'transparent', color: activeTab === tab ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.35)', border: 'none', cursor: 'pointer', fontWeight: activeTab === tab ? 700 : 400, fontSize: 14, transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 6 }}>
               {icon} {label}
             </button>
           ))}
         </div>
 
-        {activeTab === 'orders' ? renderOrdersPanel() : activeTab === 'analytics' ? renderAnalyticsPanel() : renderProductsPanel()}
+        {activeTab === 'orders' ? renderOrdersPanel() : activeTab === 'analytics' ? renderAnalyticsPanel() : activeTab === 'products' ? renderProductsPanel() : renderStockPanel()}
       </div>
 
       <style jsx global>{`
