@@ -5,14 +5,14 @@ from django.conf import settings
 from django.core.mail import send_mail
 from .models import Order, OrderItem, ShippingAddress
 from cart.models import Cart
-from products.models import Product          # ← Para descontar stock
+from products.models import Product          # ← Ya está importado (útil para restaurar stock)
 import jwt
 from datetime import datetime, timedelta
 from django.utils import timezone
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# FUNCIONES AUXILIARES
+# FUNCIONES AUXILIARES (sin cambios)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def get_user_id(request):
@@ -70,6 +70,39 @@ def order_to_dict(order):
         'expires_at': order.expires_at.isoformat() if order.expires_at else None,
         'paid_at': order.paid_at.isoformat() if order.paid_at else None
     }
+
+# 🆕 CAMBIO: Nueva función auxiliar para cancelación automática (Cancelación Pasiva)
+def check_and_cancel_expired_orders():
+    """
+    Busca órdenes pendientes que ya expiraron y las cancela restaurando el stock.
+    Esta función se llama al consultar órdenes para asegurar datos actualizados.
+    """
+    now = timezone.now()
+    # Buscamos órdenes 'pending' cuya fecha de expiración ya pasó
+    expired_orders = Order.objects.filter(status='pending', expires_at__lt=now)
+    
+    for order in expired_orders:
+        # Restaurar stock de cada item en la orden
+        for item in order.items:
+            product = Product.objects(slug=item.product_slug).first()
+            if product:
+                variant_key = f"{item.size}|{item.color}"
+                # Lógica de restauración idéntica a la de UpdateOrderStatusView
+                if product.stock_by_variant and variant_key in product.stock_by_variant:
+                    product.stock_by_variant[variant_key] += item.quantity
+                    product.save()
+                else:
+                    # Fallback al stock general
+                    if hasattr(product, 'update'):
+                        product.update(stock=product.stock + item.quantity)
+                    else:
+                        product.stock += item.quantity
+                        product.save()
+        
+        # Actualizar estado a cancelado
+        order.status = 'cancelled'
+        order.updated_at = now
+        order.save()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -146,6 +179,7 @@ class CreateOrderView(APIView):
             notes=request.data.get('notes', ''),
             expires_at=timezone.now() + timedelta(minutes=5)
         )
+        # El estado por defecto es 'pending' (definido en el modelo)
         order.save()
 
         # ─── DESCONTAR STOCK DE PRODUCTOS ───
@@ -173,7 +207,7 @@ class CreateOrderView(APIView):
             cart.calculate_totals()
             cart.save()
 
-        # ─── ENVIAR CORREO DE CONFIRMACIÓN ───
+        # ─── ENVIAR CORREO DE CONFIRMACIÓN (sin cambios) ───
         items_html = ""
         for item in order.items:
             items_html += f"""
@@ -309,6 +343,9 @@ class OrderDetailView(APIView):
 
         admin = is_admin(request)
 
+        # 🆕 CAMBIO: Revisar si esta orden específica expiró antes de mostrarla
+        check_and_cancel_expired_orders()
+
         try:
             if admin:
                 order = Order.objects.get(id=order_id)
@@ -328,6 +365,9 @@ class UserOrdersView(APIView):
         user_id = get_user_id(request)
         if not user_id:
             return Response({'error': 'Token inválido'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # 🆕 CAMBIO: Revisar y cancelar órdenes expiradas del usuario antes de listar
+        check_and_cancel_expired_orders()
 
         orders = Order.objects.filter(user_id=user_id).order_by('-created_at')
         return Response([order_to_dict(o) for o in orders], status=status.HTTP_200_OK)
@@ -341,9 +381,16 @@ class AllOrdersView(APIView):
         if not is_admin(request):
             return Response({'error': 'No autorizado'}, status=status.HTTP_403_FORBIDDEN)
 
+        # 🆕 CAMBIO: Revisar y cancelar todas las órdenes expiradas antes de que el admin las vea
+        check_and_cancel_expired_orders()
+
         orders = Order.objects.all().order_by('-created_at')
         return Response([order_to_dict(o) for o in orders], status=status.HTTP_200_OK)
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VISTA PARA ACTUALIZAR ESTADO (MODIFICADA)
+# ═══════════════════════════════════════════════════════════════════════════
 
 class UpdateOrderStatusView(APIView):
     authentication_classes = []
@@ -359,13 +406,46 @@ class UpdateOrderStatusView(APIView):
             return Response({'error': 'Orden no encontrada'}, status=status.HTTP_404_NOT_FOUND)
 
         new_status = request.data.get('status')
-        if new_status not in ['pending', 'paid', 'shipped']:
+
+        # 🆕 CAMBIO: Lista de estados válidos incluyendo los nuevos
+        valid_statuses = ['pending', 'paid', 'pending_shipment', 'shipped', 'cancelled']
+        if new_status not in valid_statuses:
             return Response({'error': 'Estado inválido'}, status=status.HTTP_400_BAD_REQUEST)
 
-        order.status = new_status
+        # 🆕 CAMBIO: Si se cancela un pedido que ya había descontado stock (no está en pending ni cancelled), restaurar stock
+        if new_status == 'cancelled' and order.status not in ['pending', 'cancelled']:
+            self._restore_stock(order)
+
+        # Si se marca como pagado por primera vez, registrar fecha
         if new_status == 'paid' and not order.paid_at:
             order.paid_at = timezone.now()
+
+        order.status = new_status
         order.updated_at = timezone.now()
         order.save()
 
         return Response(order_to_dict(order), status=status.HTTP_200_OK)
+
+    # 🆕 FUNCIÓN NUEVA: Restaura el stock de los productos de una orden (al cancelar)
+    def _restore_stock(self, order):
+        """
+        Repone el inventario de cada producto de la orden.
+        Útil cuando se cancela una orden que ya había descontado stock.
+        """
+        for item in order.items:
+            product = Product.objects(slug=item.product_slug).first()
+            if not product:
+                continue
+
+            variant_key = f"{item.size}|{item.color}"
+            if product.stock_by_variant and variant_key in product.stock_by_variant:
+                # Aumentar stock por variante
+                product.stock_by_variant[variant_key] += item.quantity
+                product.save()
+            else:
+                # Aumentar stock general
+                if hasattr(product, 'update'):
+                    product.update(stock=product.stock + item.quantity)
+                else:
+                    product.stock += item.quantity
+                    product.save()
