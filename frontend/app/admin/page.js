@@ -11,7 +11,7 @@ import {
 import { c } from '../lib/styles';
 import { API_URL } from '../lib/api';
 
-// ============================================================
+// ===========================================================
 // CONFIGURACIÓN
 // ============================================================
 const ITEMS_PER_PAGE = 10;
@@ -574,20 +574,26 @@ export default function AdminPage() {
 
   useEffect(() => { setCurrentPage(1); }, [filterStatus, searchTerm, sortBy, sortOrder]);
 
+  // ── CAMBIO 1: variables de conteo de pedidos actualizadas ──
   const totalOrders = orders.length;
-  const totalRevenue = orders.filter(o => o.status === 'paid').reduce((sum, o) => sum + o.total, 0);
+  const totalRevenue = orders.filter(o => o.status === 'paid' || o.status === 'pending_shipment' || o.status === 'shipped').reduce((sum, o) => sum + o.total, 0);
   const pendingOrders = orders.filter(o => o.status === 'pending').length;
   const paidOrders = orders.filter(o => o.status === 'paid').length;
+  const pendingShipmentOrders = orders.filter(o => o.status === 'pending_shipment').length;
+  const cancelledOrders = orders.filter(o => o.status === 'cancelled').length;
 
   const clearFilters = () => { setFilterStatus(''); setSearchTerm(''); setSortBy('created_at'); setSortOrder('desc'); setCurrentPage(1); };
   const handleSort = (field) => { if (sortBy === field) setSortOrder(s => s === 'asc' ? 'desc' : 'asc'); else setSortBy(field); setCurrentPage(1); };
   const goToPage = (page) => setCurrentPage(Math.max(1, Math.min(page, totalPages)));
 
+  // ── CAMBIO 2: getStatusStyle con nuevos estados ──
   const getStatusStyle = (status) => {
     switch (status) {
-      case 'pending': return { backgroundColor: 'rgba(230,81,0,0.15)', color: '#FF8A50', borderColor: 'rgba(230,81,0,0.3)' };
-      case 'paid':    return { backgroundColor: 'rgba(46,125,50,0.15)', color: '#69F0AE', borderColor: 'rgba(46,125,50,0.3)' };
-      case 'shipped': return { backgroundColor: 'rgba(21,101,192,0.15)', color: '#82B1FF', borderColor: 'rgba(21,101,192,0.3)' };
+      case 'pending':          return { backgroundColor: 'rgba(230,81,0,0.15)', color: '#FF8A50', borderColor: 'rgba(230,81,0,0.3)' };
+      case 'paid':             return { backgroundColor: 'rgba(46,125,50,0.15)', color: '#69F0AE', borderColor: 'rgba(46,125,50,0.3)' };
+      case 'pending_shipment': return { backgroundColor: 'rgba(184,134,11,0.15)', color: '#FFD966', borderColor: 'rgba(184,134,11,0.3)' };
+      case 'shipped':          return { backgroundColor: 'rgba(21,101,192,0.15)', color: '#82B1FF', borderColor: 'rgba(21,101,192,0.3)' };
+      case 'cancelled':        return { backgroundColor: 'rgba(219,68,55,0.15)', color: '#EF9A9A', borderColor: 'rgba(219,68,55,0.3)' };
       default: return { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', borderColor: 'rgba(255,255,255,0.1)' };
     }
   };
@@ -706,20 +712,24 @@ export default function AdminPage() {
   // ============================================================
   const renderOrdersPanel = () => (
     <>
+      {/* ── CAMBIO 3: 6 tarjetas KPI ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 36 }}>
         <KPICard label="Total Pedidos" value={totalOrders} icon="📋" color="#4285F4" statusThresholds={[1, 10]} gradient="linear-gradient(135deg, rgba(66,133,244,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
         <KPICard label="Ingresos Totales" value={totalRevenue} prefix="$" icon="💰" color="#0F9D58" statusThresholds={[1, 100000]} formatFn={v => v.toLocaleString()} gradient="linear-gradient(135deg, rgba(15,157,88,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
         <KPICard label="Pendientes" value={pendingOrders} icon="⏳" color="#F4B400" statusThresholds={[1, 5]} reverseStatus gradient="linear-gradient(135deg, rgba(244,180,0,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
         <KPICard label="Pagados" value={paidOrders} icon="✅" color="#B8860B" statusThresholds={[1, 10]} gradient="linear-gradient(135deg, rgba(184,134,11,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+        <KPICard label="Por enviar" value={pendingShipmentOrders} icon="📦" color="#B8860B" gradient="linear-gradient(135deg, rgba(184,134,11,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
+        <KPICard label="Cancelados" value={cancelledOrders} icon="🚫" color="#DB4437" gradient="linear-gradient(135deg, rgba(219,68,55,0.12) 0%, rgba(18,18,18,0.8) 100%)" />
       </div>
 
       <div style={{ ...glassCard, padding: '18px 22px', marginBottom: 28 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
             <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Estado</span>
-            {['', 'pending', 'paid', 'shipped'].map(s => (
+            {/* ── CAMBIO 4: botones de filtro con nuevos estados ── */}
+            {['', 'pending', 'paid', 'pending_shipment', 'shipped', 'cancelled'].map(s => (
               <button key={s} onClick={() => setFilterStatus(s)} style={chipStyle(filterStatus === s)}>
-                {s === '' ? 'Todos' : s === 'pending' ? 'Pendientes' : s === 'paid' ? 'Pagados' : 'Enviados'}
+                {s === '' ? 'Todos' : s === 'pending' ? 'Pendientes' : s === 'paid' ? 'Pagados' : s === 'pending_shipment' ? 'Por enviar' : s === 'shipped' ? 'Enviados' : 'Cancelados'}
               </button>
             ))}
           </div>
@@ -761,11 +771,14 @@ export default function AdminPage() {
                       <td style={{ padding: '14px 20px', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>{new Date(order.created_at + 'Z').toLocaleDateString('es-CO')}</td>
                       <td style={{ padding: '14px 20px', fontWeight: 700, color: '#0F9D58', fontSize: 14, fontFamily: 'monospace' }}>${order.total.toLocaleString()}</td>
                       <td style={{ padding: '14px 20px' }}>
+                        {/* ── CAMBIO 5: opciones del select actualizadas ── */}
                         <select value={order.status} onChange={e => handleStatusChange(order.id, e.target.value)} disabled={updatingId === order.id}
                           style={{ padding: '5px 10px', backgroundColor: ss.backgroundColor, color: ss.color, border: `1px solid ${ss.borderColor}`, borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                          <option value="pending">Pendiente</option>
+                          <option value="pending">Pendiente de pago</option>
                           <option value="paid">Pagado</option>
+                          <option value="pending_shipment">Pendiente por enviar</option>
                           <option value="shipped">Enviado</option>
+                          <option value="cancelled">Cancelado</option>
                         </select>
                       </td>
                       <td style={{ padding: '14px 20px' }}>
@@ -874,7 +887,6 @@ export default function AdminPage() {
               <div style={{ ...glassCard, marginBottom: '40px' }}>
                 <SectionHeader icon="💬" title="Seguimiento de WhatsApp" subtitle="Clics en WhatsApp → Compras concretadas" />
                 
-                {/* Tarjetas de métricas */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
                   <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
                     <div style={{ fontSize: 24, fontWeight: 800, color: '#25D366' }}>
@@ -904,7 +916,6 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Botón para registrar compra manual */}
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
                   <button
                     onClick={() => {
