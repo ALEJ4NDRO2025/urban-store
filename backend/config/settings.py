@@ -9,7 +9,9 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from pathlib import Path
@@ -22,14 +24,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-from dotenv import dotenv_values
-config = dotenv_values(".env")
-SECRET_KEY = config['SECRET_KEY']
+
+
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
-ALLOWED_HOSTS = []
+DEBUG = os.getenv("DEBUG", "False") == "True"
+
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost").split(",")
 
 
 # Application definition
@@ -156,7 +159,7 @@ import certifi
 
 mongoengine.connect(
     db='urbanstore',
-    host=config['MONGODB_URI'],    # ← desde .env
+    host=os.getenv('MONGODB_URI'),    # ← desde .env
     tlsCAFile=certifi.where()
 )
 
@@ -164,9 +167,9 @@ mongoengine.connect(
 import cloudinary
 
 cloudinary.config(
-    cloud_name = config['CLOUDINARY_CLOUD_NAME'],
-    api_key    = config['CLOUDINARY_API_KEY'],
-    api_secret = config['CLOUDINARY_API_SECRET'],
+    cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key    = os.getenv('CLOUDINARY_API_KEY'),
+    api_secret = os.getenv('CLOUDINARY_API_SECRET'),
 )
 
 import certifi
@@ -184,12 +187,14 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_USE_SSL = False
-EMAIL_HOST_USER = config.get('EMAIL_HOST_USER', 'goldenash04@gmail.com')
-EMAIL_HOST_PASSWORD = config.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'goldenash04@gmail.com')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = f'Urban Store <{EMAIL_HOST_USER}>'
 
-import os
+
 
 # Stripe
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
+
+STATIC_ROOT = BASE_DIR / "staticfiles"
