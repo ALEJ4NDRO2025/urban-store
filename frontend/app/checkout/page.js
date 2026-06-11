@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
@@ -55,7 +56,8 @@ function PaymentStep({ clientSecret, orderId }) {
   );
 }
 
-export default function CheckoutPage() {
+// ── Componente interno que usa useSearchParams ──
+function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const resumeOrderId = searchParams.get('resume_order');
@@ -220,10 +222,7 @@ export default function CheckoutPage() {
       metadata: { cart_total: realTotal, item_count: items.length },
     });
 
-    // Obtener los items más actualizados directamente del store
     const cartItems = useCartStore.getState().items;
-    console.log('Items antes de crear orden:', cartItems);
-
     if (!cartItems || cartItems.length === 0) {
       setError('Tu carrito está vacío. Agrega productos antes de continuar.');
       setLoading(false);
@@ -428,13 +427,7 @@ export default function CheckoutPage() {
                       {item.selected_size} · {item.selected_color} · <strong>x{item.quantity}</strong>
                     </p>
                   </div>
-                  <p style={{
-                    fontSize: '15px',
-                    fontWeight: '700',
-                    color: c.primary,
-                    margin: 0,
-                    whiteSpace: 'nowrap',
-                  }}>
+                  <p style={{ fontSize: '15px', fontWeight: '700', color: c.primary, margin: 0, whiteSpace: 'nowrap' }}>
                     ${(Number(item.price_at_time) * item.quantity).toLocaleString()}
                   </p>
                 </div>
@@ -478,11 +471,7 @@ export default function CheckoutPage() {
 
             {error && <div style={{ ...styles.error, marginBottom: '16px' }}>{error}</div>}
 
-            <button
-              onClick={handleAddressSubmit}
-              disabled={loading}
-              style={styles.button(loading)}
-            >
+            <button onClick={handleAddressSubmit} disabled={loading} style={styles.button(loading)}>
               {loading ? 'Procesando...' : 'Continuar al pago'}
             </button>
             <button onClick={() => router.push('/carrito')} style={mergeStyles(styles.buttonSecondary(), { marginTop: '10px' })}>
@@ -505,5 +494,18 @@ export default function CheckoutPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+// ── Página principal con Suspense ──
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ background: '#0D0D0D', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+        Cargando checkout...
+      </div>
+    }>
+      <CheckoutContent />
+    </Suspense>
   );
 }
