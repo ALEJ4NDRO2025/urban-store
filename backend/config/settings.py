@@ -44,6 +44,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'corsheaders',
     
     #librerias instaladas
     'rest_framework',
@@ -142,9 +144,10 @@ STATIC_URL = 'static/'
 
 #-CORS- para Next.js hable con django
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
+    "http://localhost:3000", 'https://urban-store-liart.vercel.app',
 ]
 
+CORS_ALLOW_CREDENTIALS= True
 #--JWT-- configuracion de Tokens
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
