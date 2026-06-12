@@ -1,4 +1,4 @@
-// frontend/app/forgot-password/ForgotPasswordForm.js
+// app/reset-password/ResetPasswordForm.js
 'use client';
 
 import { useState } from 'react';
@@ -6,52 +6,56 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../lib/api';
 import { c } from '../lib/styles';
 
-export default function ForgotPasswordForm() {
+export default function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
   const emailFromUrl = searchParams.get('email') || '';
+
   const [email, setEmail] = useState(emailFromUrl);
+  const [code, setCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email) {
-      setError('El email es requerido');
+    if (!email || !code || !newPassword) {
+      setError('Todos los campos son obligatorios');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
     setLoading(true);
     setError('');
 
-    const res = await fetch(`${API_URL}/api/users/request-password-reset/`, {
+    const res = await fetch(`${API_URL}/api/users/confirm-password-reset/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, code, new_password: newPassword }),
     });
     const data = await res.json();
     setLoading(false);
 
     if (res.ok) {
       setSuccess(true);
-      setTimeout(() => {
-        router.push(`/reset-password?email=${encodeURIComponent(email)}`);
-      }, 3000);
+      setTimeout(() => router.push('/login'), 3000);
     } else {
-      setError(data.error || 'Error al enviar el código');
+      setError(data.error || 'Error al restablecer');
     }
   };
 
   return (
     <div style={{ backgroundColor: c.bg, minHeight: '100vh', color: c.textMain, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ backgroundColor: c.card, padding: '40px', borderRadius: '12px', maxWidth: '400px', width: '90%' }}>
-        <h2 style={{ marginBottom: '20px', textAlign: 'center' }}>Recuperar contraseña</h2>
+        <h2 style={{ marginBottom: '20px', textAlign: 'center' }}>Nueva contraseña</h2>
 
         {success ? (
           <div style={{ textAlign: 'center' }}>
-            <p style={{ color: c.success }}>📧 Código enviado</p>
-            <p style={{ color: c.textSub }}>Redirigiendo...</p>
+            <p style={{ color: c.success }}>✅ ¡Contraseña actualizada!</p>
+            <p style={{ color: c.textSub }}>Redirigiendo al login...</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -64,7 +68,6 @@ export default function ForgotPasswordForm() {
                 readOnly={!!emailFromUrl}
                 disabled={!!emailFromUrl}
                 required
-                placeholder="tu@email.com"
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -75,11 +78,29 @@ export default function ForgotPasswordForm() {
                   cursor: emailFromUrl ? 'not-allowed' : 'text',
                 }}
               />
-              {emailFromUrl && (
-                <p style={{ fontSize: '12px', color: c.textWeak, marginTop: '4px' }}>
-                  Email asociado a tu cuenta. No se puede modificar.
-                </p>
-              )}
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', color: c.textSub }}>Código de reseteo</label>
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="123456"
+                maxLength={6}
+                required
+                style={{ width: '100%', padding: '12px', backgroundColor: c.input, border: `1px solid ${c.border}`, borderRadius: '6px', color: c.textMain, textAlign: 'center', fontSize: '20px', letterSpacing: '6px' }}
+              />
+            </div>
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', color: c.textSub }}>Nueva contraseña</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                required
+                style={{ width: '100%', padding: '12px', backgroundColor: c.input, border: `1px solid ${c.border}`, borderRadius: '6px', color: c.textMain }}
+              />
             </div>
             {error && <p style={{ color: c.error, marginBottom: '16px' }}>{error}</p>}
             <button
@@ -87,17 +108,8 @@ export default function ForgotPasswordForm() {
               disabled={loading}
               style={{ width: '100%', padding: '14px', backgroundColor: c.primary, color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
             >
-              {loading ? 'Enviando...' : 'Enviar código'}
+              {loading ? 'Actualizando...' : 'Actualizar contraseña'}
             </button>
-            <div style={{ marginTop: '16px', textAlign: 'center' }}>
-              <button
-                type="button"
-                onClick={() => router.push('/login')}
-                style={{ background: 'none', border: 'none', color: c.primary, cursor: 'pointer', fontSize: '14px' }}
-              >
-                ← Volver al login
-              </button>
-            </div>
           </form>
         )}
       </div>
