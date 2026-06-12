@@ -185,11 +185,10 @@ ssl._create_default_https_context = lambda: ssl_context
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURACIÓN DE CORREO ELECTRÓNICO (SMTP GMAIL) CON CERTIFICADOS FIJOS
 # ═══════════════════════════════════════════════════════════════════════════
-EMAIL_BACKEND = 'config.email_backend.CustomEmailBackend'
+EMAIL_BACKEND = 'config.email_backend.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_USE_SSL = False
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'goldenash04@gmail.com')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = f'Urban Store <{EMAIL_HOST_USER}>'
