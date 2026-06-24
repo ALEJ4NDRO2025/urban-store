@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
 from django.core.mail import send_mail
+from users.email_utils import send_email_brevo
 from .models import Order, OrderItem, ShippingAddress
 from cart.models import Cart
 from products.models import Product          # ← Ya está importado (útil para restaurar stock)
@@ -320,14 +321,12 @@ Tel: {order.shipping_address.phone}
 Gracias por confiar en Urban Store.
 """
 
-        send_mail(
-            subject=f'Confirmación de pedido #{order.order_number} - Urban Store',
-            message=text_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[order.shipping_address.email],
-            html_message=html_message,
-            fail_silently=False,
-        )
+        send_email_brevo(
+    subject=f'Confirmación de pedido #{order.order_number} - Urban Store',
+    html_content=html_message,
+    to_email=order.shipping_address.email,
+    text_content=text_message,
+)
 
         return Response(order_to_dict(order), status=status.HTTP_201_CREATED)
 

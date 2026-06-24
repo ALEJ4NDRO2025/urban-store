@@ -9,6 +9,7 @@ import bcrypt
 import jwt
 import random
 from django.core.mail import send_mail
+from .email_utils import send_email_brevo
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FUNCIÓN AUXILIAR PARA EXTRAER EL PAYLOAD DEL JWT
@@ -99,14 +100,12 @@ class RegisterView(APIView):
             </html>
             '''
 
-            send_mail(
-                subject,
-                text_message,
-                from_email,
-                recipient_list,
-                html_message=html_message,
-                fail_silently=False,
-            )
+            send_email_brevo(
+    subject=subject,
+    html_content=html_message,
+    to_email=user.email,
+    text_content=text_message,
+)
 
             return Response({
                 'message': 'Usuario registrado. Revisa tu correo para obtener el código de verificación.',
@@ -422,14 +421,12 @@ class RequestPasswordResetView(APIView):
         </html>
         '''
 
-        send_mail(
-            subject,
-            text_message,
-            from_email,
-            recipient_list,
-            html_message=html_message,
-            fail_silently=False,
-        )
+        send_email_brevo(
+    subject=subject,
+    html_content=html_message,
+    to_email=user.email,
+    text_content=text_message,
+)
 
         return Response({'message': 'Código de reseteo enviado a tu correo'}, status=200)
 
@@ -551,13 +548,11 @@ class ResendVerificationCodeView(APIView):
         </html>
         '''
 
-        send_mail(
-            subject,
-            text_message,
-            from_email,
-            recipient_list,
-            html_message=html_message,
-            fail_silently=False,
-        )
+        send_email_brevo(
+    subject=subject,
+    html_content=html_message,
+    to_email=user.email,
+    text_content=text_message,
+)
 
         return Response({'message': 'Nuevo código enviado a tu correo'}, status=200)

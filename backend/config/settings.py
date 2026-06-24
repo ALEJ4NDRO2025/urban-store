@@ -141,7 +141,6 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-
 #-CORS- para Next.js hable con django
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000", 'https://urban-store-liart.vercel.app',
@@ -191,7 +190,11 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'goldenash04@gmail.com')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = f'Urban Store <{EMAIL_HOST_USER}>'
+
+
+# Brevo (API HTTP) - reemplaza el envío por SMTP porque Railway bloquea el puerto 587
+BREVO_API_KEY = os.getenv('BREVO_API_KEY', '')
+BREVO_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL', EMAIL_HOST_USER)
 
 
 
