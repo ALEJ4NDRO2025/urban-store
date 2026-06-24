@@ -100,12 +100,15 @@ class RegisterView(APIView):
             </html>
             '''
 
-            send_email_brevo(
-    subject=subject,
-    html_content=html_message,
-    to_email=user.email,
-    text_content=text_message,
-)
+            try:
+                send_email_brevo(
+                    subject=subject,
+                    html_content=html_message,
+                    to_email=user.email,
+                    text_content=text_message,
+                )
+            except Exception as e:
+                print(f'[Brevo] Error enviando correo de verificación a {user.email}: {e}')
 
             return Response({
                 'message': 'Usuario registrado. Revisa tu correo para obtener el código de verificación.',
@@ -421,12 +424,15 @@ class RequestPasswordResetView(APIView):
         </html>
         '''
 
-        send_email_brevo(
-    subject=subject,
-    html_content=html_message,
-    to_email=user.email,
-    text_content=text_message,
-)
+        try:
+            send_email_brevo(
+                subject=subject,
+                html_content=html_message,
+                to_email=user.email,
+                text_content=text_message,
+            )
+        except Exception as e:
+            print(f'[Brevo] Error enviando correo de reseteo a {user.email}: {e}')
 
         return Response({'message': 'Código de reseteo enviado a tu correo'}, status=200)
 
@@ -548,11 +554,14 @@ class ResendVerificationCodeView(APIView):
         </html>
         '''
 
-        send_email_brevo(
-    subject=subject,
-    html_content=html_message,
-    to_email=user.email,
-    text_content=text_message,
-)
+        try:
+            send_email_brevo(
+                subject=subject,
+                html_content=html_message,
+                to_email=user.email,
+                text_content=text_message,
+            )
+        except Exception as e:
+            print(f'[Brevo] Error enviando correo de reenvío a {user.email}: {e}')
 
         return Response({'message': 'Nuevo código enviado a tu correo'}, status=200)

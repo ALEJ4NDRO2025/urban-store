@@ -321,12 +321,15 @@ Tel: {order.shipping_address.phone}
 Gracias por confiar en Urban Store.
 """
 
-        send_email_brevo(
-    subject=f'Confirmación de pedido #{order.order_number} - Urban Store',
-    html_content=html_message,
-    to_email=order.shipping_address.email,
-    text_content=text_message,
-)
+        try:
+            send_email_brevo(
+                subject=f'Confirmación de pedido #{order.order_number} - Urban Store',
+                html_content=html_message,
+                to_email=order.shipping_address.email,
+                text_content=text_message,
+            )
+        except Exception as e:
+            print(f'[Brevo] Error enviando correo de confirmación de pedido #{order.order_number}: {e}')
 
         return Response(order_to_dict(order), status=status.HTTP_201_CREATED)
 
