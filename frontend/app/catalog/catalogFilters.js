@@ -12,6 +12,13 @@ export default function CatalogFilters() {
   // ESTADOS — Variables que controlan qué filtro está abierto
   // ═══════════════════════════════════════════════════════════════════════════
 
+  // panelPinned: el usuario hizo click para dejarlo abierto (toggle)
+  // panelHovering: el mouse está encima del panel
+  // El panel se ve si CUALQUIERA de los dos es true (clic O hover)
+  const [panelPinned, setPanelPinned] = useState(false)
+  const [panelHovering, setPanelHovering] = useState(false)
+  const panelOpen = panelPinned || panelHovering
+
   // isOpen: objeto que mantiene cuál filtro está expandido (true = abierto, false = cerrado)
   // Por defecto TODOS LOS FILTROS CERRADOS: category false, size false, price false
   const [isOpen, setIsOpen] = useState({
@@ -237,16 +244,77 @@ export default function CatalogFilters() {
   // RENDER PRINCIPAL
   // ═══════════════════════════════════════════════════════════════════════════
 
+  const activeFiltersCount = [activeCategory, activeSize, (minPrice || maxPrice) ? 'price' : null].filter(Boolean).length
+
   return (
     <div
-      style={{
-        backgroundColor: c.card,
-        border: `1.5px solid ${c.border}`,
-        borderRadius: '8px',
-        padding: '24px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-      }}
+      onMouseEnter={() => setPanelHovering(true)}
+      onMouseLeave={() => setPanelHovering(false)}
     >
+      {/* BARRA SIEMPRE VISIBLE — al hacer click o pasar el mouse por encima se abre el panel */}
+      <button
+        onClick={() => setPanelPinned((p) => !p)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          backgroundColor: c.card,
+          border: `1.5px solid ${panelOpen ? c.primary : c.border}`,
+          borderRadius: '8px',
+          padding: '14px 20px',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease-in-out',
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h2 style={{ ...styles.heading2, fontSize: '16px', marginBottom: 0 }}>Filtros</h2>
+          {activeFiltersCount > 0 && (
+            <span
+              style={{
+                backgroundColor: c.primary,
+                color: '#000',
+                borderRadius: '20px',
+                padding: '1px 9px',
+                fontSize: '12px',
+                fontWeight: 700,
+              }}
+            >
+              {activeFiltersCount}
+            </span>
+          )}
+        </span>
+        <span
+          style={{
+            fontSize: '14px',
+            color: panelOpen ? c.primary : c.textSub,
+            transform: panelOpen ? 'rotate(0deg)' : 'rotate(-180deg)',
+            transition: 'transform 0.3s ease-in-out',
+          }}
+        >
+          ▼
+        </span>
+      </button>
+
+      {/* PANEL DESPLEGABLE — solo se muestra con click o hover sobre el bloque */}
+      <div
+        style={{
+          maxHeight: panelOpen ? '2000px' : '0px',
+          opacity: panelOpen ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'max-height 0.35s ease-in-out, opacity 0.25s ease-in-out, margin-top 0.35s ease-in-out',
+          marginTop: panelOpen ? '10px' : '0px',
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: c.card,
+            border: `1.5px solid ${c.border}`,
+            borderRadius: '8px',
+            padding: '24px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          }}
+        >
       {/* HEADER CON TÍTULO Y BOTÓN LIMPIAR */}
       <div
         style={{
@@ -509,6 +577,8 @@ export default function CatalogFilters() {
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   )
 }

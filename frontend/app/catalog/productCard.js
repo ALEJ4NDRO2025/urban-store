@@ -17,7 +17,14 @@ export default function ProductCard({ product }) {
 
   if (!product) return null;
 
-  const inStock = product.stock > 0;
+  // Igual que en el panel admin y en la página de detalle: si el producto
+  // tiene stock por talla/color, ese es el que manda. Antes esta card solo
+  // miraba `product.stock` (el campo plano), así que un producto con stock
+  // por variante desactualizado podía mostrar "En stock"/"Agotado" mal.
+  const totalStock = (product.stock_by_variant && Object.keys(product.stock_by_variant).length > 0)
+    ? Object.values(product.stock_by_variant).reduce((a, b) => a + b, 0)
+    : (product.stock || 0);
+  const inStock = totalStock > 0;
   const productLink = product.slug ? `/catalog/${product.slug}` : `/catalog/${product._id}`;
   const imageUrl = product.images?.[0] || PLACEHOLDER_IMG;
 
