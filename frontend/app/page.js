@@ -471,7 +471,10 @@ export default function HomePage() {
                       <div style={{ display: 'inline-block', background: `linear-gradient(135deg, ${c.primary}, #D4A017)`, color: '#0D0D0D', fontSize: '13px', fontWeight: '700', padding: '8px 20px', borderRadius: '50px', marginBottom: '24px', width: 'fit-content', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: `0 4px 12px rgba(184,134,11,0.3)` }}>🔥 Más Vendido</div>
                       <h3 style={{ fontSize: 'clamp(28px,5vw,40px)', fontWeight: '900', marginBottom: '16px', color: '#FFFFFF', lineHeight: 1.2, letterSpacing: '1px' }}>{bestSeller.name}</h3>
                       <p style={{ color: c.primary, marginBottom: '24px', fontSize: '15px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '2px' }}>{bestSeller.category}</p>
-                      <div style={{ fontSize: 'clamp(32px,6vw,48px)', fontWeight: '900', color: c.primary, marginBottom: '32px', background: `linear-gradient(135deg, ${c.primary}, #FFD700)`, backgroundSize: '200% auto', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>${bestSeller.price?.toLocaleString()}</div>
+                      {/* ✅ PRECIO CORREGIDO (bestSeller) */}
+                      <div style={{ fontSize: 'clamp(32px,6vw,48px)', fontWeight: '900', color: c.primary, marginBottom: '32px', background: `linear-gradient(135deg, ${c.primary}, #FFD700)`, backgroundSize: '200% auto', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                        {bestSeller.price != null ? Number(bestSeller.price).toLocaleString('es-CO') : ''}
+                      </div>
                       <button style={{ background: `linear-gradient(135deg, ${c.primary}, #D4A017)`, backgroundSize: '200% auto', color: '#0D0D0D', padding: '16px 36px', borderRadius: '50px', border: 'none', fontWeight: '700', fontSize: '16px', cursor: 'pointer', width: 'fit-content', transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)', boxShadow: `0 8px 20px rgba(184,134,11,0.3), inset 0 1px 0 rgba(255,255,255,0.2)`, position: 'relative', overflow: 'hidden', textTransform: 'uppercase', letterSpacing: '1px' }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 12px 28px rgba(184,134,11,0.4), inset 0 1px 0 rgba(255,255,255,0.3)`; e.currentTarget.style.backgroundPosition = '100% center'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 8px 20px rgba(184,134,11,0.3), inset 0 1px 0 rgba(255,255,255,0.2)`; e.currentTarget.style.backgroundPosition = '0% center'; }}>Ver Producto</button>
                     </div>
                   </div>
@@ -490,7 +493,10 @@ export default function HomePage() {
                       <div style={{ padding: '24px' }}>
                         <div style={{ fontSize: '12px', color: c.primary, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 600 }}>{product.category || 'Urban'}</div>
                         <h3 style={{ fontSize: 'clamp(18px,3vw,22px)', fontWeight: '700', margin: '0 0 12px', color: '#FFFFFF', lineHeight: 1.3 }}>{product.name}</h3>
-                        <div style={{ fontSize: 'clamp(22px,4vw,28px)', fontWeight: '800', color: c.primary, background: `linear-gradient(135deg, ${c.primary}, #FFD700)`, backgroundSize: '200% auto', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>${product.price?.toLocaleString()}</div>
+                        {/* ✅ PRECIO CORREGIDO (restProducts) */}
+                        <div style={{ fontSize: 'clamp(22px,4vw,28px)', fontWeight: '800', color: c.primary, background: `linear-gradient(135deg, ${c.primary}, #FFD700)`, backgroundSize: '200% auto', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                          {product.price != null ? Number(product.price).toLocaleString('es-CO') : ''}
+                        </div>
                       </div>
                     </div>
                   </Link>
