@@ -187,7 +187,7 @@ export default function ProductCard({ product }) {
               marginTop: 'auto',
             }}
           >
-            ${product.price?.toLocaleString()}
+            ${(Number(product.price) || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
           </div>
 
           {/* BOTÓN AGREGAR */}
