@@ -440,6 +440,11 @@ export default function AdminPage() {
   const [stockData, setStockData] = useState([]);
   const [loadingStock, setLoadingStock] = useState(false);
   const [stockFilter, setStockFilter] = useState('all');
+  const [stockSearch, setStockSearch] = useState('');
+  const [showStockDrawer, setShowStockDrawer] = useState(false);
+  const [stockDrawerProduct, setStockDrawerProduct] = useState(null);
+  const [stockAddValues, setStockAddValues] = useState({});
+  const [savingStock, setSavingStock] = useState(false);
 
   // ============================================================
   // EFECTOS
@@ -1453,23 +1458,94 @@ export default function AdminPage() {
       const totalStock = (product.stock_by_variant && Object.keys(product.stock_by_variant).length > 0)
         ? Object.values(product.stock_by_variant).reduce((a, b) => a + b, 0)
         : (product.stock || 0);
-      if (stockFilter === 'low') return totalStock > 0 && totalStock <= 5;
-      if (stockFilter === 'out') return totalStock === 0;
+      if (stockFilter === 'low' && !(totalStock > 0 && totalStock <= 5)) return false;
+      if (stockFilter === 'out' && totalStock !== 0) return false;
+      if (stockSearch && !product.name?.toLowerCase().includes(stockSearch.toLowerCase())) return false;
       return true;
     });
 
+    // Aplica el mismo update a las dos pestañas (Stock y Productos) para que
+    // las cards se refresquen en todo el panel admin sin esperar un reload.
+    const applyStockUpdateLocally = (slug, newStock, newStockByVariant) => {
+      const applyUpdate = p => (p.slug === slug ? { ...p, stock: newStock, stock_by_variant: newStockByVariant } : p);
+      setStockData(prev => prev.map(applyUpdate));
+      setProducts(prev => prev.map(applyUpdate));
+    };
+
     const handleQuickStockUpdate = async (slug, newStock) => {
       const token = localStorage.getItem('access');
+      const parsedStock = parseInt(newStock) || 0;
       try {
         const res = await fetch(`${API_URL}/api/products/${slug}/`, {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stock: parseInt(newStock) || 0 }),
+          // Al editar el stock total desde aquí, también limpiamos el stock por
+          // variante para que el número que se ve sea siempre el que se guardó
+          // (si no, el total seguiría calculándose a partir de stock_by_variant
+          // y el cambio "no se vería reflejado").
+          body: JSON.stringify({ stock: parsedStock, stock_by_variant: {} }),
         });
         if (!res.ok) throw new Error('Error al actualizar');
         toast.success('Stock actualizado');
-        setStockData(prev => prev.map(p => (p.slug === slug ? { ...p, stock: parseInt(newStock) || 0 } : p)));
+        applyStockUpdateLocally(slug, parsedStock, {});
       } catch { toast.error('No se pudo actualizar el stock'); }
+    };
+
+    const openStockDrawer = (product) => {
+      setStockDrawerProduct(product);
+      setStockAddValues({});
+      setShowStockDrawer(true);
+    };
+
+    const closeStockDrawer = () => {
+      setShowStockDrawer(false);
+      setStockDrawerProduct(null);
+      setStockAddValues({});
+    };
+
+    const hasVariants = stockDrawerProduct && stockDrawerProduct.sizes?.length > 0 && stockDrawerProduct.colors?.length > 0;
+
+    const handleSaveStockDrawer = async () => {
+      if (!stockDrawerProduct) return;
+      const token = localStorage.getItem('access');
+      setSavingStock(true);
+      try {
+        let newStockByVariant = {};
+        let newTotal = 0;
+
+        if (hasVariants) {
+          const existing = stockDrawerProduct.stock_by_variant || {};
+          stockDrawerProduct.sizes.forEach(size => {
+            stockDrawerProduct.colors.forEach(color => {
+              const key = `${size}|${color}`;
+              const current = existing[key] || 0;
+              const toAdd = parseInt(stockAddValues[key]) || 0;
+              newStockByVariant[key] = Math.max(0, current + toAdd);
+            });
+          });
+          newTotal = Object.values(newStockByVariant).reduce((a, b) => a + b, 0);
+        } else {
+          const current = stockDrawerProduct.stock || 0;
+          const toAdd = parseInt(stockAddValues['_flat']) || 0;
+          newTotal = Math.max(0, current + toAdd);
+          newStockByVariant = {};
+        }
+
+        const res = await fetch(`${API_URL}/api/products/${stockDrawerProduct.slug}/`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stock: newTotal, stock_by_variant: newStockByVariant }),
+        });
+        if (!res.ok) throw new Error('Error al actualizar');
+
+        toast.success('Stock actualizado');
+        applyStockUpdateLocally(stockDrawerProduct.slug, newTotal, newStockByVariant);
+        closeStockDrawer();
+      } catch {
+        toast.error('No se pudo actualizar el stock');
+      } finally {
+        setSavingStock(false);
+      }
     };
 
     return (
@@ -1482,11 +1558,14 @@ export default function AdminPage() {
         </div>
 
         <div style={{ ...glassCard, padding: '14px 20px', marginBottom: 20 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Filtro</span>
-            {[['all', 'Todos'], ['low', 'Stock bajo (≤5)'], ['out', 'Agotados']].map(([val, label]) => (
-              <button key={val} onClick={() => setStockFilter(val)} style={chipStyle(stockFilter === val)}>{label}</button>
-            ))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+            <input type="text" placeholder="🔍  Buscar producto…" value={stockSearch} onChange={e => setStockSearch(e.target.value)}
+              style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 40, color: 'rgba(255,255,255,0.8)', fontSize: 13, minWidth: 240, outline: 'none' }} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              {[['all', 'Todos'], ['low', 'Stock bajo (≤5)'], ['out', 'Agotados']].map(([val, label]) => (
+                <button key={val} onClick={() => setStockFilter(val)} style={chipStyle(stockFilter === val)}>{label}</button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1495,19 +1574,17 @@ export default function AdminPage() {
             <div style={{ padding: 48, textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Cargando inventario…</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
                   <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                    <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Producto</th>
-                    <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Categoría</th>
-                    <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Stock actual</th>
-                    <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Estado</th>
-                    <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Actualizar</th>
+                    {['Img', 'Producto', 'Categoría', 'Tallas', 'Colores', 'Stock actual', 'Estado', 'Gestionar'].map(h => (
+                      <th key={h} style={{ padding: '12px 14px', textAlign: h === 'Img' || h === 'Producto' ? 'left' : 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredStock.length === 0 ? (
-                    <tr><td colSpan="5" style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>No se encontraron productos</td></tr>
+                    <tr><td colSpan="8" style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>No se encontraron productos</td></tr>
                   ) : (
                     filteredStock.map((product, idx) => {
                       const totalStock = (product.stock_by_variant && Object.keys(product.stock_by_variant).length > 0)
@@ -1515,6 +1592,7 @@ export default function AdminPage() {
                         : (product.stock || 0);
                       const isLow = totalStock > 0 && totalStock <= 5;
                       const isOut = totalStock === 0;
+                      const productHasVariants = product.sizes?.length > 0 && product.colors?.length > 0;
                       return (
                         <tr key={product.slug} style={{
                           borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s', animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both`,
@@ -1522,41 +1600,75 @@ export default function AdminPage() {
                         }}
                         onMouseEnter={e => e.currentTarget.style.background = isOut ? 'rgba(219,68,55,0.1)' : isLow ? 'rgba(244,180,0,0.1)' : 'rgba(255,255,255,0.02)'}
                         onMouseLeave={e => e.currentTarget.style.background = isOut ? 'rgba(219,68,55,0.05)' : isLow ? 'rgba(244,180,0,0.05)' : 'transparent'}>
-                          <td style={{ padding: '12px 18px', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{product.name}</td>
-                          <td style={{ padding: '12px 18px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{product.category}</td>
-                          <td style={{ padding: '12px 18px', textAlign: 'center', fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: isOut ? '#DB4437' : isLow ? '#F4B400' : '#0F9D58' }}>
+                          <td style={{ padding: '10px 14px' }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                              {product.images && product.images.length > 0
+                                ? <img src={product.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'rgba(255,255,255,0.15)' }}>📷</div>}
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{product.name}</td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{product.category || '—'}</td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
+                              {product.sizes?.length > 0
+                                ? product.sizes.map(s => <span key={s} style={{ background: 'rgba(66,133,244,0.15)', color: '#4285F4', padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{s}</span>)
+                                : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
+                              {product.colors?.length > 0
+                                ? product.colors.map(col => {
+                                    const dot = getColorDot(col);
+                                    return (
+                                      <span key={col} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(184,134,11,0.12)', color: 'rgba(255,255,255,0.6)', padding: '1px 7px', borderRadius: 10, fontSize: 11 }}>
+                                        {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }} />}
+                                        {col}
+                                      </span>
+                                    );
+                                  })
+                                : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: isOut ? '#DB4437' : isLow ? '#F4B400' : '#0F9D58' }}>
                             {totalStock}
                           </td>
-                          <td style={{ padding: '12px 18px', textAlign: 'center' }}>
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 12px', borderRadius: 20, background: isOut ? 'rgba(219,68,55,0.15)' : isLow ? 'rgba(244,180,0,0.15)' : 'rgba(15,157,88,0.15)', color: isOut ? '#DB4437' : isLow ? '#F4B400' : '#0F9D58', fontSize: 11, fontWeight: 700, border: `1px solid ${isOut ? 'rgba(219,68,55,0.3)' : isLow ? 'rgba(244,180,0,0.3)' : 'rgba(15,157,88,0.3)'}` }}>
                               <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isOut ? '#DB4437' : isLow ? '#F4B400' : '#0F9D58', boxShadow: `0 0 4px ${isOut ? '#DB4437' : isLow ? '#F4B400' : '#0F9D58'}` }} />
                               {isOut ? 'Agotado' : isLow ? 'Stock bajo' : 'En stock'}
                             </span>
                           </td>
-                          <td style={{ padding: '12px 18px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
-                              <input
-                                type="number"
-                                min="0"
-                                defaultValue={totalStock}
-                                onBlur={(e) => {
-                                  const newStock = parseInt(e.target.value);
-                                  if (!isNaN(newStock) && newStock !== totalStock) {
-                                    handleQuickStockUpdate(product.slug, newStock);
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                            {productHasVariants ? (
+                              <button onClick={() => openStockDrawer(product)} style={{ padding: '5px 14px', background: 'rgba(184,134,11,0.1)', color: c.primary, border: '1px solid rgba(184,134,11,0.25)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                                📊 Por talla/color
+                              </button>
+                            ) : (
+                              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  defaultValue={totalStock}
+                                  onBlur={(e) => {
                                     const newStock = parseInt(e.target.value);
-                                    if (!isNaN(newStock) && newStock !== totalStock) {
-                                      handleQuickStockUpdate(product.slug, newStock);
+                                    if (!isNaN(newStock) && newStock !== totalStock) handleQuickStockUpdate(product.slug, newStock);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      const newStock = parseInt(e.target.value);
+                                      if (!isNaN(newStock) && newStock !== totalStock) handleQuickStockUpdate(product.slug, newStock);
+                                      e.target.blur();
                                     }
-                                    e.target.blur();
-                                  }
-                                }}
-                                style={{ width: '70px', padding: '6px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center', outline: 'none', fontFamily: 'monospace' }}
-                              />
-                            </div>
+                                  }}
+                                  style={{ width: '70px', padding: '6px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center', outline: 'none', fontFamily: 'monospace' }}
+                                />
+                                <button onClick={() => openStockDrawer(product)} title="Agregar tallas y colores" style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
+                                  ＋
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -1567,6 +1679,90 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+
+        {/* ─── DRAWER: GESTIONAR STOCK ─── */}
+        {showStockDrawer && stockDrawerProduct && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}>
+            <div onClick={closeStockDrawer} style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }} />
+            <div style={{ position: 'relative', width: '100%', maxWidth: 600, height: '100%', background: 'rgba(14,14,14,0.97)', backdropFilter: 'blur(30px)', borderLeft: '1px solid rgba(255,255,255,0.08)', boxShadow: '-12px 0 48px rgba(0,0,0,0.7)', padding: '32px 28px', overflowY: 'auto', animation: 'slideInRight 0.3s cubic-bezier(0.4,0,0.2,1)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: 'rgba(255,255,255,0.9)', margin: 0 }}>Gestionar stock</h2>
+                <button onClick={closeStockDrawer} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                  {stockDrawerProduct.images?.[0]
+                    ? <img src={stockDrawerProduct.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: 'rgba(255,255,255,0.15)' }}>📷</div>}
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{stockDrawerProduct.name}</span>
+              </div>
+
+              {hasVariants ? (
+                <section style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 18 }}>
+                  <h3 style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>📊 Sumar stock por talla y color</h3>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 14 }}>
+                    Escribe la cantidad que quieras <strong>agregar</strong> a cada combinación (se suma a lo que ya hay). Usa números negativos para restar.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
+                    {stockDrawerProduct.sizes.flatMap(size =>
+                      stockDrawerProduct.colors.map(color => {
+                        const key = `${size}|${color}`;
+                        const current = (stockDrawerProduct.stock_by_variant || {})[key] || 0;
+                        const toAdd = parseInt(stockAddValues[key]) || 0;
+                        const preview = Math.max(0, current + toAdd);
+                        return (
+                          <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{size} / {color}</span>
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Actual: {current}</span>
+                            <input
+                              type="number"
+                              placeholder="+0"
+                              value={stockAddValues[key] ?? ''}
+                              onChange={e => setStockAddValues(prev => ({ ...prev, [key]: e.target.value }))}
+                              style={inputStyle()}
+                            />
+                            {toAdd !== 0 && (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: toAdd > 0 ? '#0F9D58' : '#DB4437' }}>
+                                → quedará en {preview}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+              ) : (
+                <section style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 18 }}>
+                  <h3 style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>📦 Sumar stock</h3>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 14 }}>
+                    Este producto no tiene tallas/colores configurados. Escribe la cantidad a agregar al stock general.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 200 }}>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Actual: {stockDrawerProduct.stock || 0}</span>
+                    <input
+                      type="number"
+                      placeholder="+0"
+                      value={stockAddValues['_flat'] ?? ''}
+                      onChange={e => setStockAddValues(prev => ({ ...prev, '_flat': e.target.value }))}
+                      style={inputStyle()}
+                    />
+                  </div>
+                </section>
+              )}
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={closeStockDrawer} style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                  Cancelar
+                </button>
+                <button onClick={handleSaveStockDrawer} disabled={savingStock} style={{ flex: 1, padding: '12px', background: c.primary, color: '#000', border: 'none', borderRadius: 10, cursor: savingStock ? 'default' : 'pointer', fontSize: 14, fontWeight: 700, opacity: savingStock ? 0.6 : 1 }}>
+                  {savingStock ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </>
     );
   };

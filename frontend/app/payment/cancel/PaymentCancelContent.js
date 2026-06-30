@@ -22,7 +22,11 @@ export default function PaymentCancelContent() {
         if (prev <= 1) {
           clearInterval(timer);
           setRedirecting(true);
-          router.push('/checkout');
+          // Reenviamos el order_id para que el checkout reanude ESE pedido
+          // pendiente (recreando el PaymentIntent) en vez de mostrar el
+          // checkout con el carrito vacío, que ya se había limpiado al
+          // crear la orden.
+          router.push(orderId ? `/checkout?resume_order=${orderId}` : '/checkout');
           return 0;
         }
         return prev - 1;
@@ -34,7 +38,7 @@ export default function PaymentCancelContent() {
   const handleManualRedirect = () => {
     if (!redirecting) {
       setRedirecting(true);
-      router.push('/checkout');
+      router.push(orderId ? `/checkout?resume_order=${orderId}` : '/checkout');
     }
   };
 
