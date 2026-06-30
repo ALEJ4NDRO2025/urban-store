@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { c } from '../lib/styles';
 import { API_URL } from '../lib/api';
 
-export default function PerfilPage() {
+function PerfilContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Estados del perfil
   const [profile, setProfile] = useState(null);
@@ -26,7 +27,9 @@ export default function PerfilPage() {
   const [passwordMessage, setPasswordMessage] = useState(null);
 
   // Pestañas y pedidos
-  const [activeTab, setActiveTab] = useState('profile');
+  // Si llegamos con ?tab=orders (ej: botón "Mis pedidos" del Home),
+  // arrancamos directo en esa pestaña.
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'orders' ? 'orders' : 'profile');
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
@@ -696,5 +699,20 @@ export default function PerfilPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Página principal con Suspense (requerido por useSearchParams) ──
+export default function PerfilPage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ background: '#0D0D0D', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+          Cargando perfil...
+        </div>
+      }
+    >
+      <PerfilContent />
+    </Suspense>
   );
 }
