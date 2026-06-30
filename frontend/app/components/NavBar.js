@@ -231,6 +231,27 @@ export default function NavBar() {
     </Link>
   );
 
+  const mobileNavLink = (path, label) => (
+    <Link
+      key={path}
+      href={path}
+      onClick={() => setMobileMenuOpen(false)}
+      style={{
+        display: 'block',
+        color: pathname === path ? c.primary : c.textMain,
+        background: pathname === path ? 'rgba(184,134,11,0.1)' : 'transparent',
+        textDecoration: 'none',
+        fontSize: '15px',
+        fontWeight: '600',
+        padding: '14px 12px',
+        borderRadius: '14px',
+        transition: 'background 0.2s, color 0.2s',
+      }}
+    >
+      {label}
+    </Link>
+  );
+
   // ─── Render ────────────────────────────────────────
   return (
     <>
@@ -440,8 +461,107 @@ export default function NavBar() {
         </div>
       </nav>
 
-      {/* Overlay y menú lateral móvil (sin cambios) */}
-      {/* ... conserva el mismo código del overlay y drawer ... */}
+      {/* Overlay y menú lateral móvil */}
+      {mobileMenuOpen && (
+        <>
+          <div
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 120,
+              background: 'rgba(0,0,0,0.65)',
+              backdropFilter: 'blur(4px)',
+              animation: 'fadeIn 0.25s ease-out',
+            }}
+          />
+          <div
+            ref={mobileMenuRef}
+            style={{
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: 'min(82vw, 320px)',
+              zIndex: 121,
+              background: 'rgba(12,12,12,0.97)',
+              backdropFilter: 'blur(24px)',
+              borderLeft: `1px solid ${c.border}`,
+              boxShadow: '-12px 0 48px rgba(0,0,0,0.7)',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'slideInRight 0.3s cubic-bezier(0.4,0,0.2,1)',
+              overflowY: 'auto',
+            }}
+          >
+            {/* Header del drawer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ ...logoStyle, fontSize: '22px', letterSpacing: '3px' }}>URBAN</span>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Cerrar menú"
+                style={{ background: 'none', border: 'none', color: c.textSub, fontSize: 24, cursor: 'pointer', padding: 4 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Usuario (si está logueado) */}
+            {loggedIn && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 4px', borderBottom: `1px solid ${c.border}`, marginBottom: 12 }}>
+                <div style={avatarCircle}>{userInitial}</div>
+                <span style={{ color: c.textMain, fontWeight: 600, fontSize: 15 }}>{userName}</span>
+              </div>
+            )}
+
+            {/* Enlaces de navegación */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {mobileNavLink('/catalog', '🛍️ Catálogo')}
+              {mobileNavLink('/carrito', `🛒 Carrito${itemCount > 0 ? ` (${itemCount})` : ''}`)}
+              {isAdmin && mobileNavLink('/admin', '⚙️ Admin')}
+              {loggedIn && mobileNavLink('/perfil', '👤 Mi Perfil')}
+            </div>
+
+            {/* Acciones de sesión */}
+            <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: `1px solid ${c.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {loggedIn ? (
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    width: '100%', padding: '12px', background: 'rgba(239,68,68,0.1)',
+                    border: `1px solid ${c.error}`, color: c.error, borderRadius: 14,
+                    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  🚪 Cerrar sesión
+                </button>
+              ) : (
+                <>
+                  <Link href="/login" onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none' }}>
+                    <button style={{
+                      width: '100%', padding: '12px', background: 'transparent',
+                      border: `1px solid ${c.primary}`, color: c.primary, borderRadius: 14,
+                      fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                    }}>
+                      Iniciar sesión
+                    </button>
+                  </Link>
+                  <Link href="/register" onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none' }}>
+                    <button style={{
+                      width: '100%', padding: '12px', background: c.primary,
+                      border: 'none', color: '#000', borderRadius: 14,
+                      fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                    }}>
+                      Registrarse
+                    </button>
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Estilos globales */}
       <style jsx global>{`
@@ -452,6 +572,14 @@ export default function NavBar() {
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(12px) scale(0.96); }
           to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideInRight {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
         }
         .hamburger-line {
           position: absolute;
